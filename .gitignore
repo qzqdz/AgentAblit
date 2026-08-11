@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.venv/
+venv/
+
+# Secrets — never commit
+.env
+*.key
+*_token*
+hf_*
+
+# Models / large artifacts
+*.safetensors
+*.gguf
+*.bin
+model_store/
+outputs/
+
+# Local
+.DS_Store
+*.log
+.claude/
