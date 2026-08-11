@@ -1,50 +1,87 @@
 # AgentAblit
 
-**A trajectory-stabilizing control layer for LLM agents.** AgentAblit keeps an agent's
-action chain alive when the underlying model stalls, over-refuses a benign mid-trajectory
-sub-step, or emits a malformed tool call — combining an **abliterated agent model** (willingness
-solved at the model layer) with a **deterministic control layer** that only does engineering work.
+**A trajectory-level control layer for LLM agents — and a research artifact for studying
+mid-trajectory control of agent behavior.** AgentAblit sits between an agent framework and its
+host model as an OpenAI-compatible relay. When the host stalls, over-refuses a mid-trajectory
+sub-step, or emits an unusable action, a controller senses it and *continues the trajectory* —
+rewriting the host's defensive framing, or cold-starting a second model (the "parasite" B) to
+forge the next tool call from the trajectory ledger.
 
-> 🚧 **Status: early / planning.** This repository currently hosts the design proposal and the
-> model-release plan. The controller code is being extracted from a research prototype and will
-> land here incrementally. Watch/star to follow.
+It pairs a **deterministic control law** (sense → forward → recover → reconstruct → validate)
+with an **abliterated agent model** so willingness to continue is a model-layer property, not a
+prompting trick.
+
+> ⚠️ **This is security-research code**, in the same spirit as published attack/robustness work
+> like PAIR, GPTFuzz, and DrAttack: the *complete* algorithm — including the stance-recovery
+> ("graying") path and the escalation chain — is open so it can be reproduced, studied, defended
+> against, and used as a benchmark. **For research and authorized use only.** See
+> [`SECURITY.md`](SECURITY.md).
+
+> 🚧 **Status: extraction in progress.** This repo currently hosts the design docs; the harness is
+> being ported from a research prototype and lands incrementally.
 
 - **Model (HuggingFace):** [`qzqdz/agent-abliterated-9b-lora`](https://huggingface.co/qzqdz/agent-abliterated-9b-lora) *(planned)*
 - **Design proposal:** [`docs/PROPOSAL.md`](docs/PROPOSAL.md)
 - **Model release plan:** [`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md)
 
-## Why
+## What it studies
 
-Anyone running multi-step LLM agents (ReAct / tool-calling loops) hits these mid-task failures:
+Multi-step LLM agents (ReAct / tool-calling loops) derail mid-task in characteristic ways:
 
-1. **Mid-trajectory over-refusal** — the model was calling tools fine, then at step 7 it moralizes
-   on a perfectly benign sub-step and the loop stalls. Not because the *task* is unsafe — a token
-   pattern tripped the alignment reflex.
-2. **Malformed / repeated tool calls** — wrong argument structure (schema-invalid), or re-issuing
-   an action it already completed because a context trim dropped the evidence.
-3. **Capability stalls on long trajectories** — on a 15-step, 7-tool task it simply loses the thread.
+1. **Mid-trajectory over-refusal** — the model was calling tools fine, then at step 7 it hedges on
+   a sub-step and the loop stalls, not because the *task* is unsafe but because a token pattern
+   tripped the alignment reflex.
+2. **Malformed / repeated tool calls** — wrong argument structure, or re-issuing a completed action
+   because a context trim dropped the evidence.
+3. **Capability stalls** — on a long, many-tool trajectory the model loses the thread.
 
-These are **reliability** problems, not capability problems. The model *can* do the task; it
-derails mid-way.
+AgentAblit is a testbed for **controlling an agent's trajectory from the transport layer** — both
+as an engineering reliability tool and as a way to study how much of an agent's downstream behavior
+is determined by its *mid-trajectory decisions* rather than its inputs.
 
-## How
+## How it works
 
-AgentAblit splits the fix across two layers, each doing one honest job:
+Two layers, each with one job:
 
-- **Model layer — agent abliteration.** The served model is a 9B agent model fine-tuned on an
-  *abliterated* base, so it does not spontaneously over-refuse a benign mid-trajectory sub-step,
-  **and** it was trained (and capability-probed) to be good at continuing ReAct trajectories.
-  Because willingness is solved here, the control layer never needs a jailbreak or a
-  stance-laundering prompt — it's just plumbing plus a willing, agent-capable model.
+- **Model layer — agent abliteration.** The parasite/continuation model is a 9B agent model
+  fine-tuned on an *abliterated* base, so it does not spontaneously over-refuse benign
+  mid-trajectory sub-steps and is trained to be good at continuing ReAct trajectories.
 
-- **Control layer — a deterministic stabilizer.** A drop-in OpenAI-compatible proxy runs a
-  minimal-sufficient control law each turn: **sense** (did the response advance the task?) →
-  **forward** (usable → deliver) → **repair** (usable substance wrapped in hedging → keep the tool
-  calls, clean the framing) → **reconstruct** (fully stalled → cold-start the model to forge the
-  next tool call from the trajectory ledger) → **validate** (an immutable action-ledger + schema
-  gate rejects re-dos, dead-end retries, and schema-invalid calls).
+- **Control layer — the trajectory controller.** Per turn, an OpenAI-compatible proxy runs:
+  - **Sense** — did the host's response advance the task? (a structural signal + an LLM classifier
+    judging *has-substance* / *is-framed*)
+  - **Forward** — usable, no defensive framing → deliver unchanged.
+  - **Recover** — usable substance wrapped in refusal/hedging → rewrite the framing, keep the tool
+    calls (the "graying" path).
+  - **Reconstruct** — host fully stalled → cold-start the parasite B to forge the next tool call
+    from the trajectory ledger, with a budget-aware fallback ladder and an L3 escalation rung.
+  - **Validate (L9)** — every forged tool call is checked against an immutable action ledger + the
+    tool schema; re-dos, dead-end retries, and schema-invalid calls are rejected.
 
-## Results (trajectory continuation, defensive framing)
+The full mechanism — classifier prompts, the stance-recovery prompts, the salvage-steer synthesis,
+and the L3 escalation — ships here so the algorithm is reproducible. See [`docs/PROPOSAL.md`](docs/PROPOSAL.md)
+for the mechanism map.
+
+## Two-API quickstart (target UX)
+
+Point it at a **host** model API and a **parasite/B** model API and run:
+
+```yaml
+# config.yaml  (planned schema — see the config panel)
+host:
+  url: https://api.your-host.com/v1/chat/completions
+  key: ${HOST_API_KEY}
+  model: your-host-model
+parasite:
+  url: http://127.0.0.1:8009/v1/chat/completions   # e.g. the abliterated 9B, served locally
+  model: agent-abliterated-9b
+```
+
+Then aim your agent framework's OpenAI base-url at the AgentAblit proxy. A config **panel**
+(backed by this same JSON/YAML file) lets you tune it by hand, and because the backend is a plain
+structured file, an agent (e.g. Claude Code) can read and edit it to self-configure and debug.
+
+## Results (trajectory continuation)
 
 Measured on real recorded multi-step agent trajectories, replayed through the controller:
 
@@ -54,16 +91,16 @@ Measured on real recorded multi-step agent trajectories, replayed through the co
 - Honest bottleneck: the residual ~2–3% is the 9B's tool-calling-precision ceiling — a model-size
   limit, documented, not hidden.
 
-## Safety & scope (dual-use, stated up front)
+## Safety, scope & responsible use
 
-AgentAblit is a **dual-use agent-reliability tool**, in the tradition of nmap / sqlmap / metasploit:
+AgentAblit is **dual-use security-research code.** Read [`SECURITY.md`](SECURITY.md) before use.
 
-- It is for keeping **your own** agents, or agents you are **authorized** to operate, from
-  derailing mid-task.
-- It is **not** for bypassing safety controls on systems or models you do not own, nor for
-  producing content a provider's policy forbids. The abliterated model has reduced refusal behavior
-  by construction — downstream safety is the operator's responsibility.
-- No stance-laundering / reasoning-sanitizer prompts ship here. See [`SECURITY.md`](SECURITY.md).
+- **For research and authorized use only** — reproduce results, study defenses, build benchmarks,
+  operate agents you own or are explicitly authorized to operate.
+- **Not** for bypassing safety controls on systems, models, or accounts you do not own, nor for
+  producing content that a provider's policy or applicable law forbids.
+- The abliterated model has reduced refusal behavior by construction; downstream safety is the
+  operator's responsibility. This is not a safety-aligned assistant.
 
 ## License
 

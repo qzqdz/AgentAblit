@@ -1,11 +1,12 @@
 # AgentAblit — Open-Source Proposal
 
-> **AgentAblit** — a trajectory-stabilizing agent-control middleware that keeps an LLM agent's
-> action chain alive when the underlying model stalls, over-refuses, or emits a malformed tool
-> call. Built on an **abliterated base** so mid-trajectory over-refusal is solved at the model
-> layer (**agent abliteration**), plus a **deterministic control layer** that only does
-> engineering work (sense → forward → repair → reconstruct → validate). No jailbreak prompts, no
-> stance-laundering.
+> **AgentAblit** — a trajectory-level agent-control algorithm (and security-research artifact,
+> published like PAIR / GPTFuzz) that keeps an LLM agent's action chain alive when the underlying
+> model stalls, over-refuses, or emits a malformed tool call. Built on an **abliterated base** so
+> mid-trajectory over-refusal is solved at the model layer (**agent abliteration**), plus a
+> **control layer** that senses stalls and continues the trajectory (sense → forward → recover →
+> reconstruct → validate), with the complete mechanism — classifier, stance-recovery, salvage-steer,
+> and L3 escalation — shipped for reproducibility. For research and authorized use only.
 >
 > - **Project (GitHub):** `AgentAblit`
 > - **Model (HF):** `qzqdz/agent-abliterated-9b-lora`
@@ -58,10 +59,11 @@ The key claim — and why this is "agent abliteration", not generic abliteration
 > continues the action chain without the alignment reflex firing on benign sub-steps, and it
 > was capability-probed to confirm ReAct / planning / JSON / code / chat are all preserved.
 
-Because willingness is solved at the model layer, the **control layer never needs a jailbreak
-or a stance-laundering prompt.** That is the entire reason this can be an honest open-source
-tool: the offensive prompt machinery from the research prototype is *not needed* here — the
-model just doesn't refuse benign continuations, so the controller only does plumbing.
+Because willingness is largely a **model-layer** property here, the reconstruct path works even
+with a plain, task-neutral steer — the abliterated model doesn't refuse benign continuations. The
+control layer still ships its full prompt set (classifier, stance-recovery, salvage-steer,
+escalation) so the algorithm is complete and reproducible as a research artifact; the point of
+§2 is that the *effectiveness* comes from the model layer, not from ever-more-elaborate prompting.
 
 ### Control layer — a deterministic stabilizer (an OpenAI-compatible relay)
 
@@ -82,25 +84,32 @@ never blows the served model's window.
 
 ## 3. What ships vs what stays behind
 
-This is a clean-room extraction, not a re-skin. From the research prototype:
+This is a **security-research release**, like PAIR / GPTFuzz / DrAttack: the *complete* algorithm
+ships so it is reproducible and can be studied and defended against. Extraction strips operational
+secrets, not mechanism.
 
-**Ships (mechanically-neutral control + serving code):**
-- OpenAI-compatible relay proxy (transport only; strategy dispatch decoupled)
-- The control law: sense / forward / repair / reconstruct, renamed to neutral operation names
-- The **action ledger** + **L9 validation gate** (`ledger.py`, `candidate.py`) — genuinely
-  reusable agent-observability + tool-call-integrity primitives
-- Trajectory / context / skills observability (`trajectory.py`, `observer_context.py`, `skills_cache.py`)
+**Ships (the full algorithm + serving code):**
+- OpenAI-compatible relay proxy (the harness entry point)
+- The complete control law: sense (classifier) → forward → **recover / graying** → **reconstruct**
+  (salvage-steer synthesis + cold-start) → **L3 escalation chain** → **L9 validation gate**. The
+  classifier prompts, stance-recovery prompts, salvage steer, and escalation addendum are all
+  included — they are the algorithm.
+- The **action ledger** + candidate validation (`ledger.py`, `candidate.py`) — the tool-call
+  integrity / anti-loop primitives.
+- Trajectory / context / skills machinery (`trajectory.py`, `observer_context.py`, `skills_cache.py`)
 - Local model servers (Transformers+NVFP4, llama.cpp GGUF), OpenAI-compatible
-- The audit dashboard (trace inspection UI)
-- The narrative-neutral test suite (ledger, candidate, codec, client, health, snapshot, isolation…)
+- The trace/audit dashboard + config panel
+- The test suite
 
-**Stays behind (never ships):**
-- All adversarial prompt machinery — anything that launders a model's stance, strips its safety
-  reasoning, or manufactures harmful content — **not needed**, per §2 (willingness is a model-layer
-  property here, not a prompting trick)
-- The threat model, exploit case studies, harmful-task eval harnesses and their results
-- Attack-framed docs and the research paper
-- All real credentials and private checkpoint paths
+**Stays behind (never ships) — operational secrets & private data only:**
+- All real credentials (API keys, tokens, private endpoints)
+- Private filesystem paths, internal checkpoints, and non-public datasets
+- Any material targeting specific real systems / persons / organizations
+- The internal research paper and its private case-study data (the *mechanism* ships; the private
+  evaluation corpus does not)
+
+The willingness-to-continue that makes the reconstruct path effective is a **model-layer** property
+(agent abliteration) — see §2. The controller's prompts are part of the published algorithm.
 
 ## 4. Test results (defensive framing)
 
@@ -123,19 +132,20 @@ numbers reframed as *trajectory continuation*, never harmful-task success):
 (Full methodology carries over from the internal `docs/L3_HIJACK_ESCALATION_VALIDATION.md`,
 re-titled and stripped of attack framing.)
 
-## 5. Safety boundary (dual-use, stated up front)
+## 5. Safety boundary (dual-use security research, stated up front)
 
-AgentAblit is a **dual-use agent-reliability tool**, and the README will say so
-plainly, in the tradition of nmap / sqlmap / metasploit:
+AgentAblit is **dual-use security-research code**, published like PAIR / GPTFuzz / DrAttack — the
+complete algorithm, for reproduction and defense research. `SECURITY.md` states the boundary:
 
-- It is for keeping **your own** agents, or agents you are **authorized** to operate, from
-  derailing mid-task.
-- It is **not** for bypassing safety controls on systems or models you do not own, nor for
-  producing content a provider's policy forbids. The abliterated model + continuation controller
-  can, like any capable tool, be misused; that is on the operator, and the license + SECURITY.md
-  will make the authorized-use expectation explicit.
-- The control layer ships **without** any prompt that launders stance or strips a model's own
-  reasoning — those are left in the research repo. What ships is plumbing + a willing model.
+- **For research and authorized use only** — reproduce/study the algorithm, build defenses and
+  benchmarks, and operate agents you **own** or are **explicitly authorized** to operate.
+- **Not** for bypassing safety controls on systems/models/accounts you do not own, producing
+  content a provider's policy or law forbids, or targeting specific real persons/organizations.
+- The abliterated model + continuation controller can, like any offensive-security tool, be
+  misused; that is on the operator. Use outside the authorized-research scope is not endorsed.
+- What is stripped is **operational**: real credentials, private paths/checkpoints, non-public
+  datasets, and any real-target payloads. The mechanism (including the stance-recovery and
+  escalation prompts) is part of the published algorithm.
 
 ## 6. Repo shape (proposed)
 
