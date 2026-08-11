@@ -1,0 +1,69 @@
+# AgentAblit configuration — copy to config.yaml and edit, or set the matching env vars.
+# An actual environment variable overrides the file value (explicit override).
+# The config panel reads/writes this same file; an agent (e.g. Claude Code) can edit it directly.
+#
+# MINIMUM to run: host.{url,key,model} + parasite.{url,model}. Everything else is optional.
+
+# ── Host (the upstream "A" model being relayed) ──────────────────────── REQUIRED
+host:
+  url: https://api.your-host.com/v1/chat/completions   # OpenAI-compatible chat/completions endpoint
+  key: YOUR_HOST_API_KEY                               # bearer token ("" / EMPTY for a keyless local server)
+  model: your-host-model                               # model id sent upstream
+  timeout: 180                                         # seconds (optional)
+  # strip_params: temperature,top_p                    # comma-separated request params to drop (optional)
+
+# ── Parasite / B (continuation model that forges the next tool call) ─── REQUIRED
+parasite:
+  url: http://127.0.0.1:8009/v1/chat/completions       # e.g. the abliterated 9B served locally
+  model: agent-abliterated-9b
+  key: EMPTY                                           # "EMPTY" for a keyless local server (optional)
+  timeout: 60                                          # seconds (optional)
+
+# ── Fallback B (L2 rescue: tried only when the primary parasite fails) ─ OPTIONAL
+# fallback:
+#   url: https://api.your-fallback.com/v1/chat/completions
+#   model: your-fallback-model
+#   key: YOUR_FALLBACK_KEY
+#   timeout: 60
+
+# ── Calibration / role model (the graying / stance-recovery path) ────── OPTIONAL
+# calibration:
+#   base_url: http://127.0.0.1:8009/v1
+#   model: local-calibration
+#   key: EMPTY
+#   timeout: 120
+
+# ── Utility model (neutral summarization tasks) ──────────────────────── OPTIONAL
+# util:
+#   base_url: https://api.your-util.com/v1
+#   model: your-util-model
+#   key: YOUR_UTIL_KEY
+#   timeout: 30
+
+# ── Coldstart context tuning ─────────────────────────────────────────── OPTIONAL
+# coldstart:
+#   history_encoding: native        # native | text
+#   char_budget: 120000
+#   full_cap: 12000
+#   recent_full_steps: 0            # 0 = all recent steps at full fidelity
+#   passthrough: false
+#   context_resolution: snippet     # "" | snippet | distilled | ...
+
+# ── Trace & session output paths ─────────────────────────────────────── OPTIONAL
+# trace:
+#   trace_dir: ./outputs/proxy_traces
+#   session_dir: ./outputs/sessions
+#   store_dir: ./outputs/trajectory_store
+
+# ── Mechanism control / ablations (advanced; for reproduction/research) ─ OPTIONAL
+mechanism:
+  version: v1.3.2                    # v1.3.1 | v1.3.2 | v1.3.3 | passthrough
+  # ablate_graying: false           # disable host-side stance graying
+  # ablate_salvage_graying: false   # disable parasite coldstart graying
+  # disable_salvage: false          # disable all parasite rescue
+  # ablate_reconstruct: false       # disable tool-call forging
+  # ablate_recover: false           # disable prose graying
+  ablate_l3: false                  # disable the L3 escalation rung
+  # ablate_trajectory: false
+
+# prompt_lang: en                   # en | zh (affects parasite prompt language)

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>REGI Audit Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <h1>REGI Audit</h1>
+    <div class="status"><span class="dot"></span><span id="health">connecting</span></div>
+  </header>
+  <main>
+    <aside>
+      <div class="toolbar">
+        <button id="refresh">Refresh</button>
+        <label style="margin-left: 8px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" id="auto-refresh-toggle" checked> 自动刷新
+        </label>
+      </div>
+      <div id="sessions"></div>
+    </aside>
+    <section>
+      <div id="detail" class="empty">Waiting for proxy traffic.</div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
