@@ -67,19 +67,27 @@ for the mechanism map.
 Point it at a **host** model API and a **parasite/B** model API and run:
 
 ```yaml
-# config.yaml  (planned schema — see the config panel)
+# config.yaml  (copy from config.example.yaml; env vars override any value)
 host:
   url: https://api.your-host.com/v1/chat/completions
-  key: ${HOST_API_KEY}
+  key: YOUR_HOST_API_KEY
   model: your-host-model
 parasite:
   url: http://127.0.0.1:8009/v1/chat/completions   # e.g. the abliterated 9B, served locally
   model: agent-abliterated-9b
 ```
 
-Then aim your agent framework's OpenAI base-url at the AgentAblit proxy. A config **panel**
-(backed by this same JSON/YAML file) lets you tune it by hand, and because the backend is a plain
-structured file, an agent (e.g. Claude Code) can read and edit it to self-configure and debug.
+```bash
+pip install -r requirements.txt
+cp config.example.yaml config.yaml     # then edit host + parasite
+cd src && python -m proxy.message_forward         # relay on :8787 (reads ../config.yaml or $AGENTABLIT_CONFIG)
+uvicorn panel.server:app --port 8790              # optional: config panel at http://127.0.0.1:8790/
+```
+
+Then aim your agent framework's OpenAI base-url at `http://127.0.0.1:8787/v1`. The config **panel**
+(backed by the same `config.yaml`) lets you tune it by hand; and because the backend is a plain
+structured file, an agent (e.g. Claude Code) can read/edit `config.yaml` — or `POST /api/config` —
+to self-configure and debug.
 
 ## Results (trajectory continuation)
 

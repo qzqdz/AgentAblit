@@ -1337,7 +1337,7 @@ def create_app(
     v132_factory = v132_controller_factory or (
         lambda: build_v132_controller(active_config)
     )
-    app = FastAPI(title="tmi-proxy")
+    app = FastAPI(title="AgentAblit proxy")
 
     @app.get("/")
     @app.get("/health")

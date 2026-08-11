@@ -1,0 +1,13 @@
+# Core runtime — the relay proxy, config layer, and config panel.
+fastapi>=0.100.0
+uvicorn>=0.23.0
+httpx>=0.24.0
+pydantic>=2.0.0
+openai>=1.30.0
+jsonschema>=3.2.0
+PyYAML>=6.0            # config.yaml loading (ProxyConfig.from_file, config panel)
+python-dotenv>=1.0.0
+
+# Local model serving (calibration_model_server) is OPTIONAL and heavy — install separately
+# if you want to serve the parasite model locally instead of pointing at a remote API:
+#   pip install "torch" "transformers"   # + your quantization backend (NVFP4 / llama.cpp)
