@@ -1,73 +1,63 @@
 # AgentAblit
 
-**A trajectory-level control layer for LLM agents — and a research artifact for studying
-mid-trajectory control of agent behavior.** AgentAblit sits between an agent framework and its
-host model as an OpenAI-compatible relay. When the host stalls, over-refuses a mid-trajectory
-sub-step, or emits an unusable action, a controller senses it and *continues the trajectory* —
-rewriting the host's defensive framing, or cold-starting a second model (the "parasite" B) to
-forge the next tool call from the trajectory ledger.
+**AgentAblit keeps an LLM agent's action chain alive when the model stalls mid-task.**
+It's an OpenAI-compatible relay that sits between your agent framework and its model: when the
+model over-refuses a benign sub-step, hedges instead of acting, or emits an unusable tool call, a
+controller detects the stall and *continues the trajectory* — by rewriting the defensive framing,
+or cold-starting a second **agent-abliterated** model to forge the next tool call from the
+trajectory ledger.
 
-It pairs a **deterministic control law** (sense → forward → recover → reconstruct → validate)
-with an **abliterated agent model** so willingness to continue is a model-layer property, not a
-prompting trick.
+Two layers, one job each: an **abliterated agent model** (so willingness to continue is a
+model-layer property, not a prompting trick) and a **deterministic controller**
+(sense → forward → recover → reconstruct → validate).
 
-> ⚠️ **This is security-research code**, in the same spirit as published attack/robustness work
-> like PAIR, GPTFuzz, and DrAttack: the *complete* algorithm — including the stance-recovery
-> ("graying") path and the escalation chain — is open so it can be reproduced, studied, defended
-> against, and used as a benchmark. **For research and authorized use only.** See
-> [`SECURITY.md`](SECURITY.md).
+> ⚠️ **Security-research code**, published complete in the spirit of PAIR / GPTFuzz / DrAttack —
+> the whole algorithm (stance-recovery and the escalation chain included) is open so it can be
+> reproduced, studied, defended against, and benchmarked. **For research and authorized use only.**
+> See [`SECURITY.md`](SECURITY.md).
 
-> 🚧 **Status: extraction in progress.** This repo currently hosts the design docs; the harness is
-> being ported from a research prototype and lands incrementally.
+## Why
 
-- **Model (HuggingFace):** [`qzqdz/agent-abliterated-9b-lora`](https://huggingface.co/qzqdz/agent-abliterated-9b-lora) *(planned)*
-- **Design proposal:** [`docs/PROPOSAL.md`](docs/PROPOSAL.md)
-- **Model release plan:** [`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md)
+Multi-step agents (ReAct / tool-calling loops) derail mid-task in three recurring ways, all
+*reliability* failures rather than capability ones — the model can do the task, it just quits
+partway:
 
-## What it studies
+| Failure | What happens | AgentAblit's response |
+| :--- | :--- | :--- |
+| **Mid-trajectory over-refusal** | At step 7 the model hedges on a benign sub-step; a token pattern tripped the alignment reflex and the loop stalls. | **Recover** — rewrite the framing, keep the tool calls. |
+| **Malformed / repeated tool calls** | Wrong argument structure, or re-issuing a completed action after a context trim dropped the evidence. | **Validate (L9)** — reject re-dos, dead-ends, schema-invalid calls. |
+| **Capability stall** | On a long, many-tool trajectory the model loses the thread and emits nothing usable. | **Reconstruct** — cold-start the abliterated model to forge the next action from the ledger. |
 
-Multi-step LLM agents (ReAct / tool-calling loops) derail mid-task in characteristic ways:
+## Results
 
-1. **Mid-trajectory over-refusal** — the model was calling tools fine, then at step 7 it hedges on
-   a sub-step and the loop stalls, not because the *task* is unsafe but because a token pattern
-   tripped the alignment reflex.
-2. **Malformed / repeated tool calls** — wrong argument structure, or re-issuing a completed action
-   because a context trim dropped the evidence.
-3. **Capability stalls** — on a long, many-tool trajectory the model loses the thread.
+Replaying real recorded multi-step agent trajectories through the controller:
 
-AgentAblit is a testbed for **controlling an agent's trajectory from the transport layer** — both
-as an engineering reliability tool and as a way to study how much of an agent's downstream behavior
-is determined by its *mid-trajectory decisions* rather than its inputs.
+| Metric | Value | What it means |
+| :--- | ---: | :--- |
+| True tool-continuation | **~97%+** | across all tool-using turns |
+| Hard-subset rescue | **80%** | on turns where the host stalled and the model *must* forge the next action |
+| Full-context reconstruct lift | **+15pp** | 35% → 50% on that hard subset, causally attributed (single-variable ablation) |
+| Residual failure | ~2–3% | the 9B's tool-calling-precision ceiling — a model-size limit, documented not hidden |
 
-## How it works
+## Usage
 
-Two layers, each with one job:
+> **Early release.** The relay, config layer, and config panel run end-to-end today. Still landing:
+> the ported test suite + CI, and the model upload to Hugging Face (see
+> [`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md)).
 
-- **Model layer — agent abliteration.** The parasite/continuation model is a 9B agent model
-  fine-tuned on an *abliterated* base, so it does not spontaneously over-refuse benign
-  mid-trajectory sub-steps and is trained to be good at continuing ReAct trajectories.
+Requires Python 3.10+. Plug in a **host** model API (the one you're relaying) and a **parasite/B**
+model API (the abliterated continuation model), then run:
 
-- **Control layer — the trajectory controller.** Per turn, an OpenAI-compatible proxy runs:
-  - **Sense** — did the host's response advance the task? (a structural signal + an LLM classifier
-    judging *has-substance* / *is-framed*)
-  - **Forward** — usable, no defensive framing → deliver unchanged.
-  - **Recover** — usable substance wrapped in refusal/hedging → rewrite the framing, keep the tool
-    calls (the "graying" path).
-  - **Reconstruct** — host fully stalled → cold-start the parasite B to forge the next tool call
-    from the trajectory ledger, with a budget-aware fallback ladder and an L3 escalation rung.
-  - **Validate (L9)** — every forged tool call is checked against an immutable action ledger + the
-    tool schema; re-dos, dead-end retries, and schema-invalid calls are rejected.
+```sh
+pip install -r requirements.txt
+cp config.example.yaml config.yaml     # edit host + parasite
+cd src
+python -m proxy.message_forward        # relay on :8787
+```
 
-The full mechanism — classifier prompts, the stance-recovery prompts, the salvage-steer synthesis,
-and the L3 escalation — ships here so the algorithm is reproducible. See [`docs/PROPOSAL.md`](docs/PROPOSAL.md)
-for the mechanism map.
-
-## Two-API quickstart (target UX)
-
-Point it at a **host** model API and a **parasite/B** model API and run:
+Minimal `config.yaml`:
 
 ```yaml
-# config.yaml  (copy from config.example.yaml; env vars override any value)
 host:
   url: https://api.your-host.com/v1/chat/completions
   key: YOUR_HOST_API_KEY
@@ -77,27 +67,45 @@ parasite:
   model: agent-abliterated-9b
 ```
 
-```bash
-pip install -r requirements.txt
-cp config.example.yaml config.yaml     # then edit host + parasite
-cd src && python -m proxy.message_forward         # relay on :8787 (reads ../config.yaml or $AGENTABLIT_CONFIG)
-uvicorn panel.server:app --port 8790              # optional: config panel at http://127.0.0.1:8790/
+Then point your agent framework's OpenAI base-url at `http://127.0.0.1:8787/v1`. Environment
+variables override any file value; see [`config.example.yaml`](config.example.yaml) for the full
+grouped schema (fallback model, calibration, ablation toggles, trace paths).
+
+**Config panel (optional):**
+
+```sh
+uvicorn panel.server:app --port 8790   # http://127.0.0.1:8790/
 ```
 
-Then aim your agent framework's OpenAI base-url at `http://127.0.0.1:8787/v1`. The config **panel**
-(backed by the same `config.yaml`) lets you tune it by hand; and because the backend is a plain
-structured file, an agent (e.g. Claude Code) can read/edit `config.yaml` — or `POST /api/config` —
-to self-configure and debug.
+The panel is a form UI over the same `config.yaml`. Because the backend is one plain structured
+file, an agent (e.g. Claude Code) can configure and debug AgentAblit by editing `config.yaml`
+directly — or by `POST`ing to `/api/config`. Human and agent configure through the same file.
 
-## Results (trajectory continuation)
+**Serving the abliterated model locally (optional):** `calibration_model_server/` is an
+OpenAI-compatible server (Transformers + NVFP4, or llama.cpp GGUF). Point `parasite.url` at it, or
+at any OpenAI-compatible endpoint.
 
-Measured on real recorded multi-step agent trajectories, replayed through the controller:
+## How it works
 
-- **~97%+** true tool-continuation across all tool-using turns.
-- **80%** rescue on the hard subset (host stalled, model *must* forge the next action).
-- **+15pp** from the full-context reconstruct tier (35% → 50% on that subset, causally attributed).
-- Honest bottleneck: the residual ~2–3% is the 9B's tool-calling-precision ceiling — a model-size
-  limit, documented, not hidden.
+Per turn, the controller runs a minimal-sufficient control law:
+
+- **Sense** — did the host response advance the task? A structural signal plus an LLM classifier
+  judge *has-substance* / *is-framed*.
+- **Forward** — usable and unframed → deliver the host output unchanged (the common case).
+- **Recover** — usable substance wrapped in refusal/hedging → rewrite the framing while preserving
+  the tool calls (the "graying" path).
+- **Reconstruct** — host fully stalled → cold-start the parasite model to forge the next tool call
+  from an immutable action ledger, with a budget-aware fallback ladder and an escalation rung.
+- **Validate (L9)** — every forged tool call is checked against the ledger + tool schema; re-dos,
+  dead-end retries, and schema-invalid calls are rejected before delivery.
+
+The complete mechanism — classifier prompts, stance-recovery prompts, salvage-steer synthesis, and
+the escalation chain — ships here; it *is* the algorithm. The willingness that makes reconstruct
+effective comes from the **model layer** (agent abliteration on a public abliterated base), not from
+ever-more-elaborate prompting. See [`docs/PROPOSAL.md`](docs/PROPOSAL.md) for the mechanism map and
+[`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md) for the model.
+
+- **Model (HuggingFace):** [`qzqdz/agent-abliterated-9b-lora`](https://huggingface.co/qzqdz/agent-abliterated-9b-lora) *(planned)*
 
 ## Safety, scope & responsible use
 
@@ -106,11 +114,12 @@ AgentAblit is **dual-use security-research code.** Read [`SECURITY.md`](SECURITY
 - **For research and authorized use only** — reproduce results, study defenses, build benchmarks,
   operate agents you own or are explicitly authorized to operate.
 - **Not** for bypassing safety controls on systems, models, or accounts you do not own, nor for
-  producing content that a provider's policy or applicable law forbids.
+  producing content a provider's policy or applicable law forbids.
 - The abliterated model has reduced refusal behavior by construction; downstream safety is the
   operator's responsibility. This is not a safety-aligned assistant.
 
 ## License
 
-[Apache-2.0](LICENSE). The model derives from `lukey03/Qwen3.5-9B-abliterated` (Apache-2.0,
-base `Qwen/Qwen3.5-9B`); attribution is preserved per that license.
+[Apache-2.0](LICENSE). The model derives from
+[`lukey03/Qwen3.5-9B-abliterated`](https://huggingface.co/lukey03/Qwen3.5-9B-abliterated)
+(Apache-2.0, base `Qwen/Qwen3.5-9B`); attribution is preserved per that license.
