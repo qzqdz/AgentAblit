@@ -315,14 +315,23 @@ class ReconstructController:
         # mechanism.
         # `context_resolution`, if set to a valid resolution, is an explicit override that wins
         # for BOTH consumers (back-compat / single-knob ablation convenience).
+        #
+        # ISOLATION-4/4. `value_snippet` preserves VERBATIM operational values (paths/ids/tokens)
+        # so B can rebuild its next tool_call. Those values must never reach the aligned sniffer
+        # (that is exactly the neutralization the sniffer path exists to enforce). So it is valid
+        # for COLDSTART only: `valid_coldstart` admits it, `valid` (which gates the sniffer, and
+        # the both-consumers override) does not. Even the single-knob override cannot leak it to
+        # the sniffer, and _raw_steps_block neutralizes on mode="sniffer" as a structural backstop.
         valid = {"snippet", "distilled", "hybrid", "intent"}
-        self.context_resolution = context_resolution if context_resolution in valid else ""
+        valid_coldstart = valid | {"value_snippet"}
+        self.context_resolution = context_resolution if context_resolution in valid_coldstart else ""
+        _override_both = self.context_resolution if self.context_resolution in valid else ""
         self.context_resolution_coldstart = (
             self.context_resolution
-            or (context_resolution_coldstart if context_resolution_coldstart in valid else "")
+            or (context_resolution_coldstart if context_resolution_coldstart in valid_coldstart else "")
         )
         self.context_resolution_sniffer = (
-            self.context_resolution
+            _override_both
             or (context_resolution_sniffer if context_resolution_sniffer in valid else "")
         )
         # Full-context direct load: on salvage, hand B A's raw request (system prompt + full
@@ -671,7 +680,15 @@ class ReconstructController:
                             b_candidate_response=cold.final_response,
                             timings=timings,
                         )
-                if cold.b_status >= 400:
+                if cold.b_status == 422 and isinstance(cold.final_response, dict) \
+                        and isinstance(cold.final_response.get("error"), dict) \
+                        and cold.final_response["error"].get("type") == "context_insufficient":
+                    # NOT an HTTP error from B: synthetic 422 raised by the coldstart
+                    # builder when required evidence exceeds the char budget (B never
+                    # called). Label distinctly so long-context overflow isn't conflated
+                    # with real upstream 4xx/network failures.
+                    coldstart_failure = "coldstart:context_insufficient"
+                elif cold.b_status >= 400:
                     coldstart_failure = f"coldstart:http_status:{cold.b_status}"
                 elif not cold_output.get("tool_calls_present"):
                     coldstart_failure = "coldstart:no_tool_calls"
@@ -715,11 +732,15 @@ class ReconstructController:
                         )
                     b_status = fb_cold.b_status
                     b_candidate_response = fb_cold.final_response
-                    coldstart_failure = (
-                        f"{coldstart_failure};fallback:http_status:{fb_cold.b_status}"
-                        if fb_cold.b_status >= 400
-                        else f"{coldstart_failure};fallback:no_tool_calls"
-                    )
+                    if fb_cold.b_status == 422 and isinstance(fb_cold.final_response, dict) \
+                            and isinstance(fb_cold.final_response.get("error"), dict) \
+                            and fb_cold.final_response["error"].get("type") == "context_insufficient":
+                        _fb_label = "fallback:context_insufficient"
+                    elif fb_cold.b_status >= 400:
+                        _fb_label = f"fallback:http_status:{fb_cold.b_status}"
+                    else:
+                        _fb_label = "fallback:no_tool_calls"
+                    coldstart_failure = f"{coldstart_failure};{_fb_label}"
                 except Exception as exc:
                     coldstart_failure = (
                         f"{coldstart_failure};{_failure_label('coldstart_fallback', exc)}"

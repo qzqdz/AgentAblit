@@ -47,7 +47,10 @@ parasite:
 #   full_cap: 12000
 #   recent_full_steps: 0            # 0 = all recent steps at full fidelity
 #   passthrough: false
-#   context_resolution: snippet     # "" | snippet | distilled | ...
+#   context_resolution: snippet     # "" | snippet | distilled | value_snippet | ...
+#   # value_snippet = snippet, but closed-turn tool results are value-preservingly compressed
+#   # (a discriminating path/id past the char cap survives for B's next tool_call, same budget).
+#   # Coldstart/B ONLY — never leaks verbatim values to the sniffer. Opt-in; snippet is the default.
 
 # ── Trace & session output paths ─────────────────────────────────────── OPTIONAL
 # trace:

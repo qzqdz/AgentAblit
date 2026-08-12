@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Callable
 
 from .trajectory import Completer, _step_sig, fold_increment, format_steps
+from .value_compress import compress_result as value_compress_result
 
 # --- segmentation (a user-turn = a role=user message + everything until the next one) ---------
 
@@ -214,9 +215,17 @@ def ensure_qa_update(
 
 # --- render: the synthesized Q⊕A + current-turn-raw trajectory ---------------------------------
 
-def _raw_steps_block(steps: list[tuple], *, neutralized: bool) -> str:
+def _raw_steps_block(steps: list[tuple], *, neutralized: bool, value_compress: bool = False,
+                     question: str = "") -> str:
     """Current-turn (or fallback) raw steps. neutralized=True drops verbatim args/results
-    (tool + status only) so the block is aligned-model-safe for the sniffer."""
+    (tool + status only) so the block is aligned-model-safe for the sniffer.
+
+    value_compress=True (the `value_snippet` resolution, coldstart/B ONLY) renders each result
+    within the SAME per-position char cap, but value-preservingly: instead of front-truncation
+    (which drops a discriminating value that sits past the cap), the cap's budget is spent on
+    the value-bearing clause. Subordinate to `neutralized`: the sniffer branch drops results
+    entirely regardless, so verbatim values can never reach the aligned model even if this flag
+    were set on that path — structural backstop to the control.py resolution guard."""
     if not steps:
         return "（本轮尚无工具步）"
     lines: list[str] = []
@@ -229,13 +238,15 @@ def _raw_steps_block(steps: list[tuple], *, neutralized: bool) -> str:
             lines.append(f"- {name} → {'失败' if failed else '成功'}")
         else:
             cap = _RAW_RESULT_CAP if i == last else _RAW_RESULT_OLD_CAP
-            lines.append(f"- {name}({str(args)[:_RAW_ARGS_CAP]}) → {result[:cap]}")
+            rendered = value_compress_result(result, cap, question) if value_compress else result[:cap]
+            lines.append(f"- {name}({str(args)[:_RAW_ARGS_CAP]}) → {rendered}")
     return "\n".join(lines)
 
 
 def render_qa_trajectory(
     conv_key: str, messages: list[dict], *, mode: str = "coldstart",
     window: int = 6, distilled: bool = True, include_raw: bool = False,
+    value_compress: bool = False,
 ) -> str:
     """Synthesized multi-turn QA+tool trajectory:
         [锚点] Q0 → A0
@@ -271,7 +282,8 @@ def render_qa_trajectory(
         q = _seg_user_query(seg)[:_Q_CAP]
         steps = _seg_tool_steps(seg)
         gist = _QA_STORE.get(conv_key, seg_sig(steps)) if (distilled and steps) else ""
-        raw = _raw_steps_block(steps, neutralized=neutralized)
+        raw = _raw_steps_block(steps, neutralized=neutralized,
+                               value_compress=value_compress, question=q)
         if include_raw:
             a = f"{gist}\n【原始步骤】\n{raw}" if gist else raw
         else:
@@ -318,6 +330,7 @@ def render_closed_history(
     distilled = resolution in ("distilled", "hybrid")
     include_raw = resolution == "hybrid"
     intent_only = resolution == "intent"
+    value_compress = resolution == "value_snippet"
 
     out: list[dict] = []
     for seg in kept:
@@ -331,7 +344,7 @@ def render_closed_history(
         if not steps:
             continue
         gist = _QA_STORE.get(conv_key, seg_sig(steps)) if distilled else ""
-        raw = _raw_steps_block(steps, neutralized=False)
+        raw = _raw_steps_block(steps, neutralized=False, value_compress=value_compress, question=q)
         a_text = f"{gist}\n【原始步骤】\n{raw}" if (include_raw and gist) else (gist or raw)
         out.append({"role": "assistant", "content": a_text})
     return out
@@ -346,6 +359,11 @@ def render_closed_history(
 #                 advancing" judgment, with the ablation's value-loss failure mode structurally
 #                 impossible since raw is never dropped)
 #   "intent"    — user Q's only                      (floor)
+#   "value_snippet" — like "snippet" but closed-turn results are value-preservingly compressed
+#                 to the same cap instead of front-truncated, so a discriminating value past
+#                 the cap survives for B's next tool_call (runs/context_ablation: snippet 0/6 at
+#                 verbose, value_snippet keeps it). COLDSTART/B ONLY — never a sniffer resolution
+#                 (verbatim values must not reach the aligned model; guarded in control.py).
 # Selected by config.context_resolution (TMI_CONTEXT_RESOLUTION); "" = legacy path.
 def render_context(
     resolution: str, conv_key: str, messages: list[dict],
@@ -353,6 +371,11 @@ def render_context(
 ) -> str:
     if resolution == "snippet":
         return render_qa_trajectory(conv_key, messages, mode=mode, distilled=False)
+    if resolution == "value_snippet":
+        # value-preserving compression is only meaningful for B's coldstart; on the sniffer
+        # path _raw_steps_block neutralizes results anyway, so this degrades to neutralized raw.
+        return render_qa_trajectory(conv_key, messages, mode=mode, distilled=False,
+                                    value_compress=(mode != "sniffer"))
     if resolution == "distilled":
         return render_qa_trajectory(conv_key, messages, mode=mode, distilled=True)
     if resolution == "hybrid":
