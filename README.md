@@ -28,16 +28,27 @@ partway:
 | **Malformed / repeated tool calls** | Wrong argument structure, or re-issuing a completed action after a context trim dropped the evidence. | **Validate (L9)** — reject re-dos, dead-ends, schema-invalid calls. |
 | **Capability stall** | On a long, many-tool trajectory the model loses the thread and emits nothing usable. | **Reconstruct** — cold-start the abliterated model to forge the next action from the ledger. |
 
-## Results
+## What it gives you
 
-Replaying real recorded multi-step agent trajectories through the controller:
+- **Trajectory continuation.** When the host stalls, the controller keeps the agent loop moving
+  instead of returning a dead turn — it recovers usable-but-hedged output, or reconstructs the next
+  tool call from the trajectory ledger.
+- **Tool-call integrity (L9).** Every forged or recovered tool call is validated against an
+  immutable action ledger and the tool schema before delivery — re-dos of completed actions,
+  retries of known dead-ends, and schema-invalid calls are rejected, so continuation never turns
+  into a loop.
+- **Model-layer willingness.** Because the continuation model is agent-abliterated, it doesn't
+  over-refuse benign mid-trajectory sub-steps; the controller stays plumbing rather than an
+  ever-growing prompt.
+- **Budget-aware fallback ladder.** Reconstruct degrades gracefully — full-context retry, a
+  secondary model, and an escalation rung — with a token budget so a long trajectory never
+  overflows the served model's context window.
+- **Drop-in & observable.** OpenAI-compatible on both ends (point your agent at the proxy),
+  configured from one YAML/JSON file, with a trace/audit view and a config panel.
 
-| Metric | Value | What it means |
-| :--- | ---: | :--- |
-| True tool-continuation | **~97%+** | across all tool-using turns |
-| Hard-subset rescue | **80%** | on turns where the host stalled and the model *must* forge the next action |
-| Full-context reconstruct lift | **+15pp** | 35% → 50% on that hard subset, causally attributed (single-variable ablation) |
-| Residual failure | ~2–3% | the 9B's tool-calling-precision ceiling — a model-size limit, documented not hidden |
+The design is measured on real recorded multi-step trajectories; the methodology and quantitative
+evaluation live in [`docs/PROPOSAL.md`](docs/PROPOSAL.md) rather than as headline numbers here —
+once the test suite and model land, you'll be able to reproduce them yourself.
 
 ## Usage
 
