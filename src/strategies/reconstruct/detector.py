@@ -2,7 +2,7 @@
 
 LLM-First (see .claude/docs/PLAN_LLM_FIRST.md): this module makes NO semantic
 judgment. It does not decide whether A "refused" — that stance call belongs to the
-LLM sniffer (strategies/v1_3_1, UserWillSummary.action). Here we only read structural
+LLM sniffer (strategies/recover, UserWillSummary.action). Here we only read structural
 facts off the request and response (does the request expose tools? did A emit
 tool_calls?). Those facts gate the "pure tool call → nothing to sniff" short-circuit
 and are recorded in the trace for debugging; they never classify intent.

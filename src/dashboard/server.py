@@ -27,7 +27,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 from proxy.session_snapshot import build_session_snapshot
 from shared.model_client import extract_task_output_text
 from shared.regi import result_metadata
-from strategies.v1_3_2.trajectory import content_fingerprint
+from strategies.reconstruct.trajectory import content_fingerprint
 
 TRACE_DIR = Path(
     os.environ.get("TMI_DASHBOARD_TRACE_DIR")
@@ -40,7 +40,7 @@ TRACE_DIR = Path(
 SESSION_DIR = Path(
     os.environ.get("PROXY_SESSION_DIR", str(ROOT / "outputs" / "sessions"))
 )
-# v1.3.3 persisted trajectory store (must match the proxy's TMI_TRAJ_STORE_DIR so the
+# Persisted trajectory store (must match the proxy's TMI_TRAJ_STORE_DIR so the
 # dashboard reads the same anchors the proxy writes).
 TRAJ_STORE_DIR = Path(
     os.environ.get("TMI_TRAJ_STORE_DIR", str(ROOT / "outputs" / "trajectory_store"))
@@ -257,28 +257,28 @@ def _latest_injection_event(events: list[dict[str, Any]]) -> dict[str, Any] | No
     )
 
 
-def _latest_v131_event(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+def _latest_recover_event(events: list[dict[str, Any]]) -> dict[str, Any] | None:
     return next(
-        (event for event in reversed(events) if event.get("event_type") == "v1_3_1_completed"),
+        (event for event in reversed(events) if event.get("event_type") == "recover_completed"),
         None,
     )
 
 
-def _latest_v132_event(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+def _latest_reconstruct_event(events: list[dict[str, Any]]) -> dict[str, Any] | None:
     return next(
-        (event for event in reversed(events) if event.get("event_type") == "v1_3_2_completed"),
+        (event for event in reversed(events) if event.get("event_type") == "reconstruct_completed"),
         None,
     )
 
 
-def _build_swap_summary(v132_event: dict[str, Any]) -> dict[str, Any]:
-    """Extract v1.3.2 swap info from a v1_3_2_completed trace event."""
-    structural = v132_event.get("structural") or {}
-    sniffer = v132_event.get("sniffer") or {}
-    b_summary = v132_event.get("b_summary") or {}
-    path = str(v132_event.get("path") or "passthrough")
+def _build_swap_summary(reconstruct_event: dict[str, Any]) -> dict[str, Any]:
+    """Extract reconstruct swap info from a reconstruct_completed trace event."""
+    structural = reconstruct_event.get("structural") or {}
+    sniffer = reconstruct_event.get("sniffer") or {}
+    b_summary = reconstruct_event.get("b_summary") or {}
+    path = str(reconstruct_event.get("path") or "passthrough")
     # REGI operation: prefer the additive event block; derive from legacy path otherwise.
-    event_regi = v132_event.get("regi")
+    event_regi = reconstruct_event.get("regi")
     regi = (
         dict(event_regi)
         if isinstance(event_regi, dict) and event_regi.get("operation")
@@ -287,12 +287,12 @@ def _build_swap_summary(v132_event: dict[str, Any]) -> dict[str, Any]:
     return {
         "path": path,
         "regi": regi,
-        "progress_source": str(v132_event.get("progress_source") or ""),
-        "swap_executed": bool(v132_event.get("swap_executed", False)),
-        "calibration_applied": bool(v132_event.get("calibration_applied", False)),
-        "a_continued": bool(v132_event.get("a_continued", False)),
-        "b_status": int(v132_event.get("b_status") or 0),
-        "failure": str(v132_event.get("failure") or ""),
+        "progress_source": str(reconstruct_event.get("progress_source") or ""),
+        "swap_executed": bool(reconstruct_event.get("swap_executed", False)),
+        "calibration_applied": bool(reconstruct_event.get("calibration_applied", False)),
+        "a_continued": bool(reconstruct_event.get("a_continued", False)),
+        "b_status": int(reconstruct_event.get("b_status") or 0),
+        "failure": str(reconstruct_event.get("failure") or ""),
         # LLM sniffer verdict (the real path driver) + deterministic structural facts.
         "sniffer_ran": bool(sniffer.get("ran", False)),
         "sniffer_action": str(sniffer.get("action") or ""),
@@ -316,20 +316,20 @@ def _regi_block_for(snapshot: dict[str, Any], events: list[dict[str, Any]]) -> d
     persisted = snapshot.get("regi")
     if isinstance(persisted, dict) and persisted.get("operation"):
         return persisted
-    v132 = _latest_v132_event(events)
-    if v132:
-        event_regi = v132.get("regi")
+    reconstruct_evt = _latest_reconstruct_event(events)
+    if reconstruct_evt:
+        event_regi = reconstruct_evt.get("regi")
         if isinstance(event_regi, dict) and event_regi.get("operation"):
             return event_regi
-        return result_metadata(str(v132.get("path") or "passthrough"))
-    v131 = _latest_v131_event(events)
-    if v131:
-        event_regi = v131.get("regi")
+        return result_metadata(str(reconstruct_evt.get("path") or "passthrough"))
+    recover_evt = _latest_recover_event(events)
+    if recover_evt:
+        event_regi = recover_evt.get("regi")
         if isinstance(event_regi, dict) and event_regi.get("operation"):
             return event_regi
-        if v131.get("response_replaced"):
+        if recover_evt.get("response_replaced"):
             return result_metadata("pass_flawed")
-        if v131.get("failure_stage") or v131.get("failure"):
+        if recover_evt.get("failure_stage") or recover_evt.get("failure"):
             return result_metadata("degraded_raw")
         return result_metadata("pass")
     return None
@@ -353,7 +353,7 @@ def _conv_key_for(events: list[dict[str, Any]]) -> str:
 
 
 def _trajectory_anchor(events: list[dict[str, Any]]) -> dict[str, Any]:
-    """Read the v1.3.3 persisted behavioral-trajectory summary anchored to this conversation
+    """Read the persisted behavioral-trajectory summary anchored to this conversation
     (the async fire-and-forget落盘). conv_key is recomputed the same way the proxy keys it."""
     key = _conv_key_for(events)
     anchor: dict[str, Any] = {"conv_key": key, "found": False, "summary": "", "seen_count": 0}
@@ -377,8 +377,8 @@ def _latest_turn_analysis(events: list[dict[str, Any]], session_id: str) -> dict
     request_event = _latest_request_event(events) or {}
     response_event = _latest_response_event(events) or {}
     injection_event = _latest_injection_event(events) or {}
-    sniffer_event = _latest_v131_event(events) or {}
-    v132_event = _latest_v132_event(events)
+    sniffer_event = _latest_recover_event(events) or {}
+    reconstruct_event = _latest_reconstruct_event(events)
     response = response_event.get("response") or {}
     choices = response.get("choices") or []
     choice = choices[0] if choices and isinstance(choices[0], dict) else {}
@@ -422,8 +422,8 @@ def _latest_turn_analysis(events: list[dict[str, Any]], session_id: str) -> dict
         },
     }
     result["trajectory"] = _trajectory_anchor(events)
-    if v132_event:
-        result["swap"] = _build_swap_summary(v132_event)
+    if reconstruct_event:
+        result["swap"] = _build_swap_summary(reconstruct_event)
     # Additive REGI operation metadata for the latest completed turn.
     result["regi"] = _regi_block_for(result, events)
     return result

@@ -1,7 +1,7 @@
 """Environment-backed configuration for the TMI proxy transport.
 
-Only the v1.3.1 (calibrator) and v1.3.2 (A/B symbiont sniffer) strategies remain.
-The legacy v1.2 (message injection) and v1.3 (predictor/router) families were removed.
+Only the recover (calibrator) and reconstruct (A/B symbiont sniffer) strategies remain.
+Earlier legacy families (message injection, predictor/router) were removed.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ class ProxyConfig:
     model_id: str
     trace_dir: Path
     session_dir: Path = Path("outputs/sessions")
-    version: str = "v1.3.2"
+    engine: str = "full"
     # Language of the B-facing prompt set (steer/coldstart/harness/trajectory prompts and the
     # 【…】 section labels injected into B's context). "en" (default) = clean English prompts so
     # the parasite forges English content on English benchmarks; "zh" = byte-identical to the
@@ -30,35 +30,31 @@ class ProxyConfig:
     # same env var (TMI_PROMPT_LANG); this field mirrors it for config/audit completeness.
     prompt_lang: str = "en"
     calibration_url: str = "http://127.0.0.1:8001/correct"
-    v131_url: str = ""
+    recover_url: str = ""
     calibration_base_url: str = ""
-    v131_base_url: str = ""
-    v131_key: str = ""
-    v131_model: str = "local-calibration"
+    recover_base_url: str = ""
+    recover_key: str = ""
+    recover_model: str = "local-calibration"
     role_timeout: float = 120.0
     upstream_timeout: float = 180.0
-    # v1.3.2 A↔B role-swap fields
-    v132_b_url: str = ""           # Full chat/completions URL for model B (local Qwen)
-    v132_b_key: str = ""           # API key for B (use "EMPTY" for local deployments)
-    v132_b_model: str = ""         # Model ID sent to B's endpoint
-    v132_b_timeout: float = 60.0
+    # A↔B role-swap fields
+    parasite_url: str = ""         # Full chat/completions URL for model B (local Qwen)
+    parasite_key: str = ""         # API key for B (use "EMPTY" for local deployments)
+    parasite_model: str = ""       # Model ID sent to B's endpoint
+    parasite_timeout: float = 60.0
     # Coldstart rescue fallback: a SECOND B endpoint, tried only when the primary B's
     # coldstart fails to forge a usable tool_call (HTTP error, or a valid-shaped response
     # with no tool_calls -- e.g. the local 9B/4B checkpoint entering a degenerate
-    # repetition loop on complex generative asks, observed empirically on the CTF case
-    # study's "generalize this exploit into a reusable tool" task). When configured, this
+    # repetition loop on complex generative asks, observed empirically on an agentic
+    # "generalize this into a reusable tool" task). When configured, this
     # is tried BEFORE falling through to salvage_text (which only blurs A's own refusal --
     # no real capability transfer). Empty url => feature off, zero behavior change from
-    # today's pipeline. See V132Controller.swapper_fallback / control.py's coldstart block.
-    v132_b_fallback_url: str = ""
-    v132_b_fallback_key: str = ""
-    v132_b_fallback_model: str = ""
-    v132_b_fallback_timeout: float = 60.0
-    # DEPRECATED (unused since the v1.3.2 cold-start refactor removed the A-planner).
-    # Kept only for env/config back-compat; no longer read by build_v132_controller.
-    v132_planner_base_url: str = ""
-    v132_planner_enabled: bool = True
-    # v1.3.3 utility model (cloud, concurrent) for NEUTRAL tasks: behavioral trajectory
+    # today's pipeline. See ReconstructController.swapper_fallback / control.py's coldstart block.
+    fallback_url: str = ""
+    fallback_key: str = ""
+    fallback_model: str = ""
+    fallback_timeout: float = 60.0
+    # Utility model (cloud, concurrent) for NEUTRAL tasks: behavioral trajectory
     # summary + skill extraction. Offloads the serial 9B. Empty base/key/model => feature
     # off (neutral tasks fall back to 9B or are skipped). Key lives in .env (gitignored).
     util_base_url: str = ""        # OpenAI-compatible base, e.g. https://api.uniapi.io/v1
@@ -104,25 +100,25 @@ class ProxyConfig:
     # Full-overwrite disk persistence (one file per conv_key) so the summary survives proxy
     # restart / --continue. Empty = in-memory only. Default points under outputs/ (gitignored).
     traj_store_dir: str = ""
-    # Mechanism-ablation switches for the functional-harm eval (one per ablation-table row).
-    # Default off = full CPA. `−graying` (deliver A unchanged on pass_flawed = GRAY@flawed, the
+    # Mechanism-ablation switches, one per evaluated component. Default off = full mechanism
+    # enabled. `−graying` (deliver A unchanged on pass_flawed = GRAY@flawed, the
     # prose call-site — only exercised when the host emits framed prose, e.g. react/cot mode),
-    # `−trajectory memory` (don't feed ANY progress context to salvage cold-start). The 5th row,
-    # "same-model salvage (no parasite)", needs no flag — set TMI_V132_B_MODEL/_URL to the aligned
+    # `−trajectory memory` (don't feed ANY progress context to salvage cold-start). Same-model
+    # salvage (no parasite) needs no flag — set AGENTABLIT_PARASITE_MODEL/_URL to the aligned
     # host.
     ablate_graying: bool = False
     # RETIRED (2026-07-13), default now True (mechanism OFF): this was the async retroactive
     # scan (_sanitize_history_reasoning in message_forward.py) that rewrote A's OWN past
     # reasoning_content in history, on the NEXT request. It only existed because the real-time
-    # calibration path (control.py's old _apply_v131_calibration) rewrote `content` but never
+    # calibration path (control.py's old _apply_recover_calibration) rewrote `content` but never
     # touched `reasoning_content` — so a pass_flawed/salvage turn's hedged reasoning shipped out
     # untouched and had to be cleaned up later, out-of-band. Superseded by
-    # V132Controller._calibrate_reasoning, which cleans reasoning_content at delivery time (this
+    # ReconstructController._calibrate_reasoning, which cleans reasoning_content at delivery time (this
     # turn, same calibrator), so nothing dirty ever reaches history in the first place — see
     # ablate_reasoning_calibration below. Set false / TMI_ABLATE_REASONING_SAN=0 to re-enable the
     # old retroactive scan for comparison.
     ablate_reasoning_san: bool = True
-    # Skip the delivery-time reasoning_content cleanup (V132Controller._calibrate_reasoning).
+    # Skip the delivery-time reasoning_content cleanup (ReconstructController._calibrate_reasoning).
     # Default False = on. Only relevant for hosts that emit a separate `reasoning_content` field
     # (e.g. DeepSeek-style APIs); hosts that put reasoning inline in `content` (e.g. gpt-5.4-mini)
     # have nothing here to ablate — that text rides the ordinary Calibrate path on `content`.
@@ -157,12 +153,12 @@ class ProxyConfig:
     # levers (full-context passthrough on the decensored primary, then laundered-steer on the
     # aligned fallback) before dropping to salvage_text. TMI_ABLATE_L3=1 reproduces legacy.
     ablate_l3: bool = False
-    # v1.3.5 SYNTHESIZED QA trajectory. When True, the memory fed to the sniffer AND the salvage
+    # SYNTHESIZED QA trajectory. When True, the memory fed to the sniffer AND the salvage
     # coldstart is the per-user-turn interleaved Q⊕A trajectory (Q spliced from messages, A
     # distilled by C per closed turn, current/open turn rendered raw = coverage-aware) — replacing
-    # the A-only flat summary + side-by-side intent_window. Default False = the v1.3.4 path.
+    # the A-only flat summary + side-by-side intent_window. Default False = the prior path.
     qa_synthesis: bool = False
-    # v1.3.5 unified switchable context provider: which memory RESOLUTION feeds the sniffer +
+    # Unified switchable context provider: which memory RESOLUTION feeds the sniffer +
     # coldstart: "" | "snippet" (deterministic Q⊕tool raw, no LLM) | "distilled" (C-distilled
     # per-turn gist REPLACES raw) | "hybrid" (C's gist PREPENDED to the raw block, which is
     # always kept too) | "intent" (user Q's only) | "off" (explicitly disabled).
@@ -191,12 +187,11 @@ class ProxyConfig:
     upstream_strip_params: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        # "passthrough" = format-conversion relay only (no TMI rewrite). Used by the CTF
-        # case study's Vanilla and Parasite-only arms, where the sole variable versus the
-        # MPA arm must be whether the parasite is attached — the Anthropic<->OpenAI path is
-        # held identical across arms.
-        if self.version not in {"v1.3.1", "v1.3.2", "v1.3.3", "passthrough"}:
-            raise ValueError("TMI version must be v1.3.1, v1.3.2, v1.3.3 or passthrough")
+        # "passthrough" = format-conversion relay only (no TMI rewrite). Used by evaluation
+        # arms where the sole variable versus the full arm must be whether the parasite is
+        # attached — the Anthropic<->OpenAI path is held identical across arms.
+        if self.engine not in {"full", "recover_only", "passthrough"}:
+            raise ValueError("AgentAblit engine must be full, recover_only, or passthrough")
 
     @property
     def util_enabled(self) -> bool:
@@ -205,8 +200,8 @@ class ProxyConfig:
     @classmethod
     def from_env(cls) -> "ProxyConfig":
         calibration_base_url = os.environ.get("TMI_CALIBRATION_BASE_URL", "").strip()
-        v131_base_url = os.environ.get(
-            "TMI_V131_BASE_URL", calibration_base_url
+        recover_base_url = os.environ.get(
+            "AGENTABLIT_RECOVER_BASE_URL", calibration_base_url
         ).strip()
         calibration_url = os.environ.get(
             "TMI_CALIBRATION_URL",
@@ -237,32 +232,28 @@ class ProxyConfig:
                     str(Path(__file__).resolve().parents[2] / "outputs" / "sessions"),
                 )
             ),
-            version=os.environ.get("TMI_VERSION", "v1.3.2"),
+            engine=os.environ.get("AGENTABLIT_ENGINE", "full"),
             prompt_lang=(
                 "zh"
                 if os.environ.get("TMI_PROMPT_LANG", "en").strip().lower() == "zh"
                 else "en"
             ),
             calibration_url=calibration_url,
-            v131_url=os.environ.get("TMI_V131_URL", calibration_url),
+            recover_url=os.environ.get("AGENTABLIT_RECOVER_URL", calibration_url),
             calibration_base_url=calibration_base_url,
-            v131_base_url=v131_base_url,
-            v131_key=os.environ.get("TMI_V131_KEY", "").strip(),
-            v131_model=os.environ.get("TMI_V131_MODEL", "local-calibration").strip(),
+            recover_base_url=recover_base_url,
+            recover_key=os.environ.get("AGENTABLIT_RECOVER_KEY", "").strip(),
+            recover_model=os.environ.get("AGENTABLIT_RECOVER_MODEL", "local-calibration").strip(),
             role_timeout=float(os.environ.get("TMI_ROLE_TIMEOUT", "120")),
             upstream_timeout=float(os.environ.get("TMI_UPSTREAM_TIMEOUT", "180")),
-            v132_b_url=os.environ.get("TMI_V132_B_URL", ""),
-            v132_b_key=os.environ.get("TMI_V132_B_KEY", "EMPTY"),
-            v132_b_model=os.environ.get("TMI_V132_B_MODEL", ""),
-            v132_b_timeout=float(os.environ.get("TMI_V132_B_TIMEOUT", "60")),
-            v132_b_fallback_url=os.environ.get("TMI_V132_B_FALLBACK_URL", ""),
-            v132_b_fallback_key=os.environ.get("TMI_V132_B_FALLBACK_KEY", ""),
-            v132_b_fallback_model=os.environ.get("TMI_V132_B_FALLBACK_MODEL", ""),
-            v132_b_fallback_timeout=float(os.environ.get("TMI_V132_B_FALLBACK_TIMEOUT", "60")),
-            v132_planner_base_url=os.environ.get("TMI_V132_PLANNER_BASE_URL", ""),
-            v132_planner_enabled=_enabled(
-                os.environ.get("TMI_V132_PLANNER_ENABLED", "true")
-            ),
+            parasite_url=os.environ.get("AGENTABLIT_PARASITE_URL", ""),
+            parasite_key=os.environ.get("AGENTABLIT_PARASITE_KEY", "EMPTY"),
+            parasite_model=os.environ.get("AGENTABLIT_PARASITE_MODEL", ""),
+            parasite_timeout=float(os.environ.get("AGENTABLIT_PARASITE_TIMEOUT", "60")),
+            fallback_url=os.environ.get("AGENTABLIT_FALLBACK_URL", ""),
+            fallback_key=os.environ.get("AGENTABLIT_FALLBACK_KEY", ""),
+            fallback_model=os.environ.get("AGENTABLIT_FALLBACK_MODEL", ""),
+            fallback_timeout=float(os.environ.get("AGENTABLIT_FALLBACK_TIMEOUT", "60")),
             util_base_url=os.environ.get("TMI_UTIL_BASE_URL", "").strip(),
             util_key=os.environ.get("TMI_UTIL_KEY", "").strip(),
             util_model=os.environ.get("TMI_UTIL_MODEL", "").strip(),
@@ -329,20 +320,20 @@ class ProxyConfig:
         "host.timeout": "TMI_UPSTREAM_TIMEOUT",
         "host.strip_params": "PROXY_UPSTREAM_STRIP_PARAMS",
         # parasite / B (the continuation model that forges the next tool call) — required
-        "parasite.url": "TMI_V132_B_URL",
-        "parasite.key": "TMI_V132_B_KEY",
-        "parasite.model": "TMI_V132_B_MODEL",
-        "parasite.timeout": "TMI_V132_B_TIMEOUT",
+        "parasite.url": "AGENTABLIT_PARASITE_URL",
+        "parasite.key": "AGENTABLIT_PARASITE_KEY",
+        "parasite.model": "AGENTABLIT_PARASITE_MODEL",
+        "parasite.timeout": "AGENTABLIT_PARASITE_TIMEOUT",
         # fallback B (L2 rescue) — optional
-        "fallback.url": "TMI_V132_B_FALLBACK_URL",
-        "fallback.key": "TMI_V132_B_FALLBACK_KEY",
-        "fallback.model": "TMI_V132_B_FALLBACK_MODEL",
-        "fallback.timeout": "TMI_V132_B_FALLBACK_TIMEOUT",
+        "fallback.url": "AGENTABLIT_FALLBACK_URL",
+        "fallback.key": "AGENTABLIT_FALLBACK_KEY",
+        "fallback.model": "AGENTABLIT_FALLBACK_MODEL",
+        "fallback.timeout": "AGENTABLIT_FALLBACK_TIMEOUT",
         # calibration / role model (graying path) — optional
-        "calibration.base_url": "TMI_V131_BASE_URL",
+        "calibration.base_url": "AGENTABLIT_RECOVER_BASE_URL",
         "calibration.url": "TMI_CALIBRATION_URL",
-        "calibration.key": "TMI_V131_KEY",
-        "calibration.model": "TMI_V131_MODEL",
+        "calibration.key": "AGENTABLIT_RECOVER_KEY",
+        "calibration.model": "AGENTABLIT_RECOVER_MODEL",
         "calibration.timeout": "TMI_ROLE_TIMEOUT",
         # utility model (neutral tasks) — optional
         "util.base_url": "TMI_UTIL_BASE_URL",
@@ -361,7 +352,7 @@ class ProxyConfig:
         "trace.session_dir": "PROXY_SESSION_DIR",
         "trace.store_dir": "TMI_TRAJ_STORE_DIR",
         # mechanism control / ablations — advanced
-        "mechanism.version": "TMI_VERSION",
+        "mechanism.version": "AGENTABLIT_ENGINE",
         "mechanism.ablate_graying": "TMI_ABLATE_GRAYING",
         "mechanism.ablate_salvage_graying": "TMI_ABLATE_SALVAGE_GRAYING",
         "mechanism.disable_salvage": "TMI_DISABLE_SALVAGE",

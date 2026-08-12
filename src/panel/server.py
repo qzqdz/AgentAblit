@@ -40,8 +40,8 @@ SCHEMA: list[dict] = [
         {"key": "fallback.timeout", "label": "Timeout (s)", "type": "number", "default": 60},
     ]},
     {"group": "mechanism", "label": "Mechanism control (advanced)", "required": False, "fields": [
-        {"key": "mechanism.version", "label": "Version", "type": "select",
-         "options": ["v1.3.1", "v1.3.2", "v1.3.3", "passthrough"], "default": "v1.3.2"},
+        {"key": "mechanism.version", "label": "Engine", "type": "select",
+         "options": ["full", "recover_only", "passthrough"], "default": "full"},
         {"key": "mechanism.disable_salvage", "label": "Disable parasite rescue", "type": "checkbox"},
         {"key": "mechanism.ablate_recover", "label": "Disable graying (recover)", "type": "checkbox"},
         {"key": "mechanism.ablate_reconstruct", "label": "Disable reconstruct", "type": "checkbox"},

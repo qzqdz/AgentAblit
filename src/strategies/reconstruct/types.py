@@ -1,4 +1,4 @@
-"""Structured types for the REGI v1.3.2-engine role-swap pipeline."""
+"""Structured types for the REGI full-engine role-swap pipeline."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -6,7 +6,7 @@ from typing import Any
 
 from shared.regi import result_metadata
 
-VERSION = "v1.3.2"
+VERSION = "full"
 
 
 @dataclass(frozen=True)
@@ -65,8 +65,8 @@ class RoleSwapResult:
 
 
 @dataclass(frozen=True)
-class V132RunResult:
-    """Final result returned by V132Controller.handle()."""
+class ReconstructResult:
+    """Final result returned by ReconstructController.handle()."""
 
     final_response: dict[str, Any]
     final_status: int
@@ -80,13 +80,13 @@ class V132RunResult:
     #   "degraded_raw"  — non-pass intent but calibrator failed; A delivered raw (honest floor)
     path: str
     swap_executed: bool
-    calibration_applied: bool       # True when v1.3.1 calibrator rewrote A's output
+    calibration_applied: bool       # True when the recover calibrator rewrote A's output
     b_status: int
     failure: str
     # True when A was re-called within turn i using Q' (directive) and produced tool_calls.
     # False = B's tool_call was returned directly as fallback.
     a_continued: bool = False
-    # v1.3.3: which "对话进展" the salvage coldstart consumed — "trajectory" (maintained
+    # Which "对话进展" the salvage coldstart consumed — "trajectory" (maintained
     # behavioral summary) or "rule_digest" (lossy fallback). "" for non-salvage paths.
     progress_source: str = ""
     # Raw B candidate, even when it had no tool_call and was therefore not delivered.
@@ -94,7 +94,7 @@ class V132RunResult:
     # the exact B text that caused a salvage attempt to fail.
     b_candidate_response: dict[str, Any] | None = None
     # Per-substep wall-clock seconds for whichever of these actually ran this turn:
-    # reasoning_sanitizer, sniffer_classifier (bundles v1.3.1 calibrator.rewrite for
+    # reasoning_sanitizer, sniffer_classifier (bundles the recover calibrator.rewrite for
     # pass_flawed), salvage_steer_synthesis, b_coldstart, b_coldstart_retry (L9 repair
     # retry). Added 2026-07-22 to stop guessing which stage the Recover/Reconstruct
     # wall-clock gap over B's own gen_seconds actually belongs to.
@@ -123,8 +123,7 @@ class V132RunResult:
 
     def to_trace_event(self, agent_meta: dict[str, str]) -> dict[str, Any]:
         return {
-            "event_type": "v1_3_2_completed",
-            "strategy_version": VERSION,
+            "event_type": "reconstruct_completed",
             "path": self.path,
             # Additive REGI semantic block: maps the delivered path to the control-law
             # operation (relay / recover_reframe / recover_text / reconstruct / degraded).

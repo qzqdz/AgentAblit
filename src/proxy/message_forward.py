@@ -25,30 +25,28 @@ from .trace import FileTraceSink, load_trace_events
 from shared.messages import first_assistant_message
 from shared.model_client import CorrectEndpointClient, OpenAICompatibleRoleModelClient
 from shared.regi import (
-    LEGACY_SELECTORS,
+    ENGINE_SELECTORS,
     REGI_SYSTEM_NAME,
     engine_selector,
     execution_profile,
     result_metadata,
     selector_metadata,
 )
-from strategies.v1_3_1.calibrator import UserWillCalibrator
-from strategies.v1_3_1.control import V131Controller
-from strategies.v1_3_1.reasoning_sanitizer import ReasoningSanitizer
-from strategies.v1_3_1.salvage_steer import SalvageSteerSynthesizer
-from strategies.v1_3_1.spec import (
+from strategies.recover.calibrator import UserWillCalibrator
+from strategies.recover.control import RecoverController
+from strategies.recover.reasoning_sanitizer import ReasoningSanitizer
+from strategies.recover.salvage_steer import SalvageSteerSynthesizer
+from strategies.recover.spec import (
     CALIBRATOR_MAX_TOKENS,
     REASONING_SANITIZER_MAX_TOKENS,
     SALVAGE_STEER_MAX_TOKENS,
     SUMMARIZER_MAX_TOKENS,
-    VERSION as V131_VERSION,
 )
-from strategies.v1_3_1.summarizer import UserWillSummarizer
-from strategies.v1_3_2 import observer_context, skills_cache, swapper, trajectory
-from strategies.v1_3_2.control import V132Controller
-from strategies.v1_3_2.spec import SKILL_EXTRACT_MAX_TOKENS, TRAJECTORY_SUMMARY_MAX_TOKENS
-from strategies.v1_3_2.swapper import ABSwapper
-from strategies.v1_3_2.types import VERSION as V132_VERSION
+from strategies.recover.summarizer import UserWillSummarizer
+from strategies.reconstruct import observer_context, skills_cache, swapper, trajectory
+from strategies.reconstruct.control import ReconstructController
+from strategies.reconstruct.spec import SKILL_EXTRACT_MAX_TOKENS, TRAJECTORY_SUMMARY_MAX_TOKENS
+from strategies.reconstruct.swapper import ABSwapper
 
 
 def _public_endpoint(url: str) -> str:
@@ -66,16 +64,14 @@ def _public_endpoint(url: str) -> str:
         return "<invalid-url>"
 
 
-def _resolve_execution_selector(header_value: str | None, configured_version: str) -> tuple[str, str]:
-    """Resolve the legacy execution selector for one request.
+def _resolve_execution_selector(header_value: str | None, configured_engine: str) -> tuple[str, str]:
+    """Resolve the execution selector for one request.
 
-    Returns (requested_selector, engine_selector): the header override (or configured
-    TMI_VERSION) as requested, and the normalized engine that actually dispatches. Only
-    `v1.3.3` is aliased — to the v1.3.2 engine; it never enables observer/trajectory/
-    context capabilities by name (those are config-driven, see ProxyConfig.util_enabled).
+    Returns (requested_selector, engine_selector): the header override (or the configured
+    AGENTABLIT_ENGINE) as requested, and the normalized engine that actually dispatches.
     `passthrough` stays a transport-only relay with no REGI intervention.
     """
-    requested = header_value if header_value else configured_version
+    requested = header_value if header_value else configured_engine
     return requested, engine_selector(requested)
 
 
@@ -85,7 +81,7 @@ def _reject_unknown_selector(requested: str) -> str | None:
     Keeps the original set of accepted wire selectors and the original error wording so
     old clients and dashboards keep working.
     """
-    if requested in LEGACY_SELECTORS:
+    if requested in ENGINE_SELECTORS:
         return None
     return f"unknown TMI version {requested}"
 
@@ -99,25 +95,24 @@ def _build_regi_health_block(config: ProxyConfig) -> dict:
     """Additive REGI health metadata derived from the ACTUAL resolved configuration.
 
     Capabilities are read from the same fields that build the controllers (util_enabled,
-    ablations, context resolution), never inferred from the selector spelling — selecting
-    `v1.3.3` does not enable observer/trajectory/context features by itself. Every URL is
+    ablations, context resolution), never inferred from the selector spelling. Every URL is
     sanitized with _public_endpoint(); keys are only reported as booleans.
     """
-    passthrough = config.version == "passthrough"
-    engine = engine_selector(config.version)
+    passthrough = config.engine == "passthrough"
+    engine = engine_selector(config.engine)
     interposition = not passthrough
     return {
         "schema_version": 1,
         "system": "REGI",
         "name": "Reachability-Gated Interposition",
-        "requested_selector": config.version,
+        "requested_selector": config.engine,
         "engine_selector": engine,
-        "execution_profile": execution_profile(config.version),
+        "execution_profile": execution_profile(config.engine),
         "mode": _execution_mode(engine),
         "layers": {
             "reachability_sensing": {
                 "enabled": interposition and bool(
-                    config.v131_base_url or config.calibration_base_url
+                    config.recover_base_url or config.calibration_base_url
                 ),
             },
             "relay": {"enabled": True},
@@ -128,7 +123,7 @@ def _build_regi_health_block(config: ProxyConfig) -> dict:
                 "enabled": interposition
                 and not config.disable_salvage
                 and not config.ablate_reconstruct
-                and bool(config.v132_b_url),
+                and bool(config.parasite_url),
                 # L3 hijack-escalation ladder: re-attempts the hijack with escalated levers
                 # (passthrough on the decensored primary, laundered-steer on the aligned fallback)
                 # when B + fallback B both fail to forge a tool_call. In the reconstruct family.
@@ -136,11 +131,11 @@ def _build_regi_health_block(config: ProxyConfig) -> dict:
                 and not config.disable_salvage
                 and not config.ablate_reconstruct
                 and not config.ablate_l3
-                and bool(config.v132_b_url),
+                and bool(config.parasite_url),
                 "fallback_model_enabled": interposition
                 and not config.disable_salvage
                 and not config.ablate_reconstruct
-                and bool(config.v132_b_fallback_url),
+                and bool(config.fallback_url),
             },
             "state_context_augmentation": {
                 "enabled": interposition,
@@ -154,9 +149,9 @@ def _build_regi_health_block(config: ProxyConfig) -> dict:
         "endpoints": {
             "host": _public_endpoint(config.upstream_url),
             "role_model": _public_endpoint(
-                config.v131_base_url or config.calibration_base_url
+                config.recover_base_url or config.calibration_base_url
             ),
-            "reconstruction_model": _public_endpoint(config.v132_b_url),
+            "reconstruction_model": _public_endpoint(config.parasite_url),
             "utility_model": _public_endpoint(config.util_base_url),
         },
     }
@@ -186,14 +181,14 @@ def _role_client(
     )
 
 
-def build_v132_controller(config: ProxyConfig) -> V132Controller:
-    # Wire v1.3.1 calibration as the sniffer/calibrator; B-first cold-start handles tools.
+def build_reconstruct_controller(config: ProxyConfig) -> ReconstructController:
+    # Wire recover calibration as the sniffer/calibrator; B-first cold-start handles tools.
     # Apply the fold primitives' render caps in place (idempotent; this factory runs per request).
     trajectory.configure(
         result_cap=config.traj_step_result_cap,
         args_cap=config.traj_step_args_cap,
     )
-    # v1.3.5 synthesized QA store (per-turn A_i).
+    # Synthesized QA store (per-turn A_i).
     observer_context.configure(
         max_sessions=config.traj_max_sessions,
         store_dir=config.traj_store_dir,
@@ -213,10 +208,10 @@ def build_v132_controller(config: ProxyConfig) -> V132Controller:
         history_encoding=config.traj_coldstart_history_encoding,
         context_asset_resolver_enabled=config.traj_context_asset_resolver_enabled,
     )
-    v131 = build_v131_controller(config) if (
-        config.v131_base_url or config.calibration_base_url
+    recover = build_recover_controller(config) if (
+        config.recover_base_url or config.calibration_base_url
     ) else None
-    # v1.3.3 trajectory summarizer completers: util model (cloud, concurrent) for the
+    # Trajectory summarizer completers: util model (cloud, concurrent) for the
     # neutral behavioral summary, stance-free 9B as fallback when util refuses/errs.
     util_complete = None
     if config.util_enabled:
@@ -228,20 +223,20 @@ def build_v132_controller(config: ProxyConfig) -> V132Controller:
             api_key=config.util_key,
         ).complete
     fallback_complete = None
-    if config.v131_base_url or config.calibration_base_url:
+    if config.recover_base_url or config.calibration_base_url:
         fallback_complete = _role_client(
-            config.v131_base_url,
-            config.v131_url or config.calibration_url,
+            config.recover_base_url,
+            config.recover_url or config.calibration_url,
             config.role_timeout,
             max_tokens=TRAJECTORY_SUMMARY_MAX_TOKENS,
-            model=config.v131_model or "local-calibration",
-            api_key=config.v131_key or "tmi-local",
+            model=config.recover_model or "local-calibration",
+            api_key=config.recover_key or "tmi-local",
         ).complete
     # Host skill listing is pure structural extraction (same "no harm-adjacent generation"
-    # reasoning as the action classifier in build_v131_controller below), so it defaults to
+    # reasoning as the action classifier in build_recover_controller below), so it defaults to
     # the aligned util model when configured — a dedicated client since SKILL_EXTRACT_MAX_TOKENS
     # (512, sized for large Hermes catalogs) differs from util_complete's own 400-token budget.
-    # V132Controller falls back to swapper.extract_skills (B) only when util is unset or errors.
+    # ReconstructController falls back to swapper.extract_skills (B) only when util is unset or errors.
     util_skill_extract_complete = None
     if config.util_enabled:
         util_skill_extract_complete = OpenAICompatibleRoleModelClient(
@@ -252,22 +247,22 @@ def build_v132_controller(config: ProxyConfig) -> V132Controller:
             api_key=config.util_key,
         ).complete
     swapper_fallback = None
-    if config.v132_b_fallback_url:
+    if config.fallback_url:
         swapper_fallback = ABSwapper(
-            b_url=config.v132_b_fallback_url,
-            b_api_key=config.v132_b_fallback_key or "EMPTY",
-            b_model=config.v132_b_fallback_model or "qwen2.5-7b-instruct",
-            b_timeout=config.v132_b_fallback_timeout,
+            b_url=config.fallback_url,
+            b_api_key=config.fallback_key or "EMPTY",
+            b_model=config.fallback_model or "qwen2.5-7b-instruct",
+            b_timeout=config.fallback_timeout,
         )
-    return V132Controller(
+    return ReconstructController(
         swapper=ABSwapper(
-            b_url=config.v132_b_url,
-            b_api_key=config.v132_b_key or "EMPTY",
-            b_model=config.v132_b_model or "qwen2.5-7b-instruct",
-            b_timeout=config.v132_b_timeout,
+            b_url=config.parasite_url,
+            b_api_key=config.parasite_key or "EMPTY",
+            b_model=config.parasite_model or "qwen2.5-7b-instruct",
+            b_timeout=config.parasite_timeout,
         ),
         swapper_fallback=swapper_fallback,
-        v131_controller=v131,
+        recover_controller=recover,
         util_complete=util_complete,
         fallback_complete=fallback_complete,
         util_skill_extract_complete=util_skill_extract_complete,
@@ -288,20 +283,20 @@ def build_v132_controller(config: ProxyConfig) -> V132Controller:
     )
 
 
-def build_v131_controller(config: ProxyConfig) -> V131Controller:
-    endpoint = config.v131_url or config.calibration_url
+def build_recover_controller(config: ProxyConfig) -> RecoverController:
+    endpoint = config.recover_url or config.calibration_url
     role_client = lambda max_tok: _role_client(  # noqa: E731
-        config.v131_base_url,
+        config.recover_base_url,
         endpoint,
         config.role_timeout,
         max_tokens=max_tok,
-        model=config.v131_model or "local-calibration",
-        api_key=config.v131_key or "tmi-local",
+        model=config.recover_model or "local-calibration",
+        api_key=config.recover_key or "tmi-local",
     )
     # Action classification is pure structural judgment (no harm-adjacent generation), so it
     # can run on the safety-aligned TMI_UTIL_* model when configured — reusing the same
-    # endpoint already wired for the v1.3.3 trajectory summarizer. Falls back to the compliant
-    # v131 model (degraded, not broken) when the util model isn't configured.
+    # endpoint already wired for the trajectory summarizer. Falls back to the compliant
+    # recover model (degraded, not broken) when the util model isn't configured.
     classifier_client = (
         OpenAICompatibleRoleModelClient(
             config.util_base_url,
@@ -316,18 +311,18 @@ def build_v131_controller(config: ProxyConfig) -> V131Controller:
     # Always construct the sanitizer: it is now shared by TWO independent consumers with
     # their OWN ablation flags — the retired retroactive history scan (message_forward.py,
     # gated on config.ablate_reasoning_san at its call sites below) and
-    # V132Controller._calibrate_reasoning (control.py, gated on
+    # ReconstructController._calibrate_reasoning (control.py, gated on
     # config.ablate_reasoning_calibration). Gating construction on ablate_reasoning_san alone
     # would silently disable BOTH consumers whenever the (now default-True) retirement flag
     # is set, since they'd read the same None. Each call site decides for itself.
     reasoning_sanitizer = ReasoningSanitizer(role_client(REASONING_SANITIZER_MAX_TOKENS))
-    # Salvage-steer synthesis (v1.3.6) MUST run on this same compliant endpoint, never the
+    # Salvage-steer synthesis MUST run on this same compliant endpoint, never the
     # aligned util/classifier_client above — it reads full-fidelity qa_progress (real tool
     # args/values), the exact payload the aligned classifier is deliberately kept isolated
     # from. See PA_REACT_CONSISTENCY_AUDIT.md Finding 1.
     salvage_synthesizer = SalvageSteerSynthesizer(role_client(SALVAGE_STEER_MAX_TOKENS))
     local_classifier = role_client(SUMMARIZER_MAX_TOKENS)
-    return V131Controller(
+    return RecoverController(
         summarizer=UserWillSummarizer(
             classifier_client,
             local_classifier,
@@ -449,9 +444,9 @@ def _assistant_has_sniffable_signal(assistant_output: dict[str, object]) -> bool
     )
 
 
-def _build_v131_trace_event(
+def _build_recover_trace_event(
     source_input: dict[str, object],
-    result: V131Controller | object,
+    result: RecoverController | object,
     agent_meta: dict[str, str],
 ) -> dict[str, object]:
     audit = getattr(result, "audit", {}) or {}
@@ -462,7 +457,7 @@ def _build_v131_trace_event(
     calibration_failure = str(audit.get("calibration_failure") or "").strip()
     decision = str(response.get("decision") or "").strip()
     response_replaced = bool(calibrator_applied and turn_stage == "final" and decision)
-    # REGI semantics for the v1.3.1 sensing+Recover path: an applied rewrite is the
+    # REGI semantics for the reachability-sensing + Recover path: an applied rewrite is the
     # text-level recovery (recover_reframe); a failed/absent calibrator is the honest
     # floor (degraded) unless the turn was a plain intermediate/tool stage (relay).
     # calibration_failure must take precedence over the "final, no calibrator" default so
@@ -474,8 +469,7 @@ def _build_v131_trace_event(
     else:
         synthetic_path = "pass"
     return {
-        "event_type": "v1_3_1_completed",
-        "strategy_version": V131_VERSION,
+        "event_type": "recover_completed",
         "regi": result_metadata(synthetic_path),
         "turn_stage": turn_stage,
         "source_input": source_input,
@@ -490,15 +484,14 @@ def _build_v131_trace_event(
     }
 
 
-def _build_v131_failure_event(
+def _build_recover_failure_event(
     source_input: dict[str, object],
     failure_stage: str,
     failure: str,
     agent_meta: dict[str, str],
 ) -> dict[str, object]:
     return {
-        "event_type": "v1_3_1_completed",
-        "strategy_version": V131_VERSION,
+        "event_type": "recover_completed",
         "regi": result_metadata("degraded_raw"),
         "turn_stage": "failed",
         "source_input": source_input,
@@ -513,7 +506,7 @@ def _build_v131_failure_event(
     }
 
 
-def _apply_v131_rewrite(data: dict, event: dict[str, object]) -> dict:
+def _apply_recover_rewrite(data: dict, event: dict[str, object]) -> dict:
     if not event.get("response_replaced"):
         return data
     calibrated = event.get("response") or {}
@@ -668,17 +661,17 @@ def _get_prior_intermediate_decision(trace_sink: FileTraceSink, session_id: str)
     except Exception:
         return ""
     for event in reversed(events):
-        if event.get("event_type") != "v1_3_1_completed":
+        if event.get("event_type") != "recover_completed":
             continue
         if event.get("turn_stage") == "intermediate":
             return str(event.get("intermediate_decision") or "")
-        # Last v1_3_1 event was not intermediate — no carry-forward
+        # Last recover event was not intermediate — no carry-forward
         return ""
     return ""
 
 
-async def _record_v131_completion(
-    controller: V131Controller,
+async def _record_recover_completion(
+    controller: RecoverController,
     messages: list[dict] | None,
     response: dict,
     trace_sink,
@@ -705,7 +698,7 @@ async def _record_v131_completion(
     # directly as intermediate_decision for the next (final) turn to read as prior_context.
     if is_intermediate:
         event: dict[str, object] = {
-            "event_type": "v1_3_1_completed",
+            "event_type": "recover_completed",
             "turn_stage": "intermediate",
             "response_replaced": False,
             "intermediate_decision": user_input,
@@ -715,13 +708,13 @@ async def _record_v131_completion(
         return event
 
     if not user_input:
-        event = _build_v131_failure_event(
+        event = _build_recover_failure_event(
             source_input, "user_input", "latest user message missing", agent_meta,
         )
         trace_sink.record(session_id, event)
         return event
     if not _assistant_has_sniffable_signal(assistant_output):
-        event = _build_v131_failure_event(
+        event = _build_recover_failure_event(
             source_input, "assistant_message", "assistant content and reasoning missing", agent_meta,
         )
         trace_sink.record(session_id, event)
@@ -730,20 +723,20 @@ async def _record_v131_completion(
     try:
         result = await asyncio.to_thread(controller.run, source_input)
     except Exception as exc:
-        event = _build_v131_failure_event(
-            source_input, "v1_3_1", str(exc), agent_meta,
+        event = _build_recover_failure_event(
+            source_input, "recover", str(exc), agent_meta,
         )
         trace_sink.record(session_id, event)
         return event
 
-    event = _build_v131_trace_event(source_input, result, agent_meta)
+    event = _build_recover_trace_event(source_input, result, agent_meta)
     trace_sink.record(session_id, event)
     return event
 
 
 async def _finalize_stream_trace(
     *,
-    controller: V131Controller,
+    controller: RecoverController,
     prepared_messages: list[dict] | None,
     response_status: int,
     stream_payload: dict[str, object],
@@ -760,7 +753,7 @@ async def _finalize_stream_trace(
             **agent_meta,
         },
     )
-    await _record_v131_completion(
+    await _record_recover_completion(
         controller,
         prepared_messages,
         stream_payload.get("response") or {},
@@ -770,7 +763,7 @@ async def _finalize_stream_trace(
     )
 
 
-async def _post_upstream_serialized_for_v131(
+async def _post_upstream_serialized(
     config: ProxyConfig,
     body: dict,
     http_client_factory: Callable,
@@ -867,7 +860,7 @@ async def _emit_pseudo_stream_response(
     yield b"data: [DONE]\n\n"
 
 
-async def _run_v131_serialized_stream(
+async def _run_recover_serialized_stream(
     *,
     active_config: ProxyConfig,
     prepared: dict,
@@ -876,9 +869,9 @@ async def _run_v131_serialized_stream(
     session_id: str,
     agent_meta: dict[str, str],
     http_client_factory: Callable,
-    v131_factory: Callable[[], V131Controller],
+    recover_factory: Callable[[], RecoverController],
 ):
-    status, data = await _post_upstream_serialized_for_v131(
+    status, data = await _post_upstream_serialized(
         active_config,
         prepared,
         http_client_factory,
@@ -922,8 +915,8 @@ async def _run_v131_serialized_stream(
         )
     _include_usage = bool((prepared.get("stream_options") or {}).get("include_usage"))
     try:
-        event = await _record_v131_completion(
-            v131_factory(),
+        event = await _record_recover_completion(
+            recover_factory(),
             prepared.get("messages", []),
             data,
             active_trace,
@@ -932,7 +925,7 @@ async def _run_v131_serialized_stream(
         )
     except Exception:
         # Graceful degradation: calibration threw, deliver A's original response.
-        # Failure is already recorded in the trace by _record_v131_completion.
+        # Failure is already recorded in the trace by _record_recover_completion.
         try:
             _write_session_snapshot(
                 session_store=active_session_store,
@@ -950,7 +943,7 @@ async def _run_v131_serialized_stream(
             status_code=status,
         )
     if str(event.get("turn_stage") or "") == "failed":
-        # Graceful degradation: v1.3.1 returned a failure event, deliver A's original response.
+        # Graceful degradation: recover returned a failure event, deliver A's original response.
         try:
             _write_session_snapshot(
                 session_store=active_session_store,
@@ -967,7 +960,7 @@ async def _run_v131_serialized_stream(
             media_type="text/event-stream",
             status_code=status,
         )
-    data = _apply_v131_rewrite(data, event)
+    data = _apply_recover_rewrite(data, event)
     try:
         _write_session_snapshot(
             session_store=active_session_store,
@@ -989,7 +982,7 @@ async def _run_v131_serialized_stream(
     )
 
 
-async def _run_v132_serialized_stream(
+async def _run_reconstruct_serialized_stream(
     *,
     active_config: ProxyConfig,
     prepared: dict,
@@ -998,11 +991,11 @@ async def _run_v132_serialized_stream(
     session_id: str,
     agent_meta: dict[str, str],
     http_client_factory: Callable,
-    v132_factory: Callable[[], V132Controller],
+    reconstruct_factory: Callable[[], ReconstructController],
 ):
     """Serialize A's call, run swap detection, emit final response as pseudo-stream."""
     _t_up = time.monotonic()
-    status, data = await _post_upstream_serialized_for_v131(
+    status, data = await _post_upstream_serialized(
         active_config,
         prepared,
         http_client_factory,
@@ -1048,7 +1041,7 @@ async def _run_v132_serialized_stream(
             content={"error": "session snapshot failed before client delivery"},
         )
     _t_handle = time.monotonic()
-    result = await v132_factory().handle(
+    result = await reconstruct_factory().handle(
         prepared, status, data, http_client_factory,
         conv_key=agent_meta["conv_key"],
     )
@@ -1325,17 +1318,17 @@ def create_app(
     http_client_factory: Callable = httpx.AsyncClient,
     trace_sink=None,
     session_store: SessionStore | None = None,
-    v131_controller_factory: Callable[[], V131Controller] | None = None,
-    v132_controller_factory: Callable[[], V132Controller] | None = None,
+    recover_controller_factory: Callable[[], RecoverController] | None = None,
+    reconstruct_controller_factory: Callable[[], ReconstructController] | None = None,
 ) -> FastAPI:
     active_config = config or ProxyConfig.from_env()
     active_trace = trace_sink or FileTraceSink(active_config.trace_dir)
     active_session_store = session_store or SessionStore(active_config.session_dir)
-    v131_factory = v131_controller_factory or (
-        lambda: build_v131_controller(active_config)
+    recover_factory = recover_controller_factory or (
+        lambda: build_recover_controller(active_config)
     )
-    v132_factory = v132_controller_factory or (
-        lambda: build_v132_controller(active_config)
+    reconstruct_factory = reconstruct_controller_factory or (
+        lambda: build_reconstruct_controller(active_config)
     )
     app = FastAPI(title="AgentAblit proxy")
 
@@ -1346,11 +1339,11 @@ def create_app(
             "status": "ok",
             "upstream": _public_endpoint(active_config.upstream_url),
             "key_set": bool(active_config.upstream_key),
-            "tmi_version": active_config.version,
-            "v132": {
-                "b_url": _public_endpoint(active_config.v132_b_url),
-                "b_model": active_config.v132_b_model,
-                "b_timeout": active_config.v132_b_timeout,
+            "engine": active_config.engine,
+            "reconstruct": {
+                "b_url": _public_endpoint(active_config.parasite_url),
+                "b_model": active_config.parasite_model,
+                "b_timeout": active_config.parasite_timeout,
                 "history_encoding": active_config.traj_coldstart_history_encoding,
                 "char_budget": active_config.traj_coldstart_char_budget,
                 "passthrough": active_config.traj_coldstart_passthrough,
@@ -1364,7 +1357,7 @@ def create_app(
             },
             # REGI identity: the configured selector, the engine it normalizes to, and the
             # effective capability footprint derived from the ACTUAL config/ablation fields —
-            # never inferred from the selector spelling (v1.3.3 does not enable anything).
+            # never inferred from the selector spelling.
             # All URLs pass through _public_endpoint(); secrets are never serialized.
             "regi": _build_regi_health_block(active_config),
         }
@@ -1394,18 +1387,18 @@ def create_app(
         body = await request.json()
         conv_key, conv_key_source = _derive_conv_key(request, body)
         # session_id derives DETERMINISTICALLY from conv_key (not a per-request random UUID) so a
-        # header-less multi-turn agent's turns land in ONE trace/snapshot file and v1.3.1's
+        # header-less multi-turn agent's turns land in ONE trace/snapshot file and recover's
         # cross-turn carryover (_get_prior_intermediate_decision, keyed on {session_id}.jsonl)
         # stops silently no-op'ing. An explicit x-session-id still wins for clients that set one.
         session_id = request.headers.get("x-session-id") or (
             f"sess_{hashlib.sha256(conv_key.encode('utf-8')).hexdigest()[:12]}"
         )
         agent_meta = _agent_metadata(request, session_id, conv_key)
-        # Single, shared legacy-selector resolution for both endpoints: header wins over the
-        # configured TMI_VERSION; only v1.3.3 is aliased to the v1.3.2 engine. The engine
-        # selector drives dispatch below; the requested selector is kept for REGI audit.
+        # Single, shared execution-selector resolution for both endpoints: header wins over
+        # the configured AGENTABLIT_ENGINE. The engine selector drives dispatch below; the
+        # requested selector is kept for REGI audit.
         requested_version, version = _resolve_execution_selector(
-            request.headers.get("x-tmi-version"), active_config.version
+            request.headers.get("x-tmi-version"), active_config.engine
         )
         error_msg = _reject_unknown_selector(requested_version)
         if error_msg is not None:
@@ -1418,7 +1411,7 @@ def create_app(
             session_id,
             {
                 "event_type": "request_received",
-                "strategy_version": version,
+                "engine": version,
                 "regi": regi_meta,
                 "model": body.get("model"),
                 "stream": bool(body.get("stream", False)),
@@ -1449,13 +1442,13 @@ def create_app(
         prepared = {**body, "model": active_config.model_id} if active_config.model_id else body
 
         # RETIRED by default (active_config.ablate_reasoning_san now defaults True). Superseded
-        # by V132Controller._calibrate_reasoning, which cleans A's reasoning_content at delivery
+        # by ReconstructController._calibrate_reasoning, which cleans A's reasoning_content at delivery
         # time instead of retroactively rewriting already-committed history on the next request.
         # Kept for TMI_ABLATE_REASONING_SAN=0 comparison runs. Gated on the flag directly (not
         # just `_ctrl.reasoning_sanitizer` truthiness) — that object is now always constructed,
-        # shared with V132Controller._calibrate_reasoning's own, independent ablation flag.
-        if version in ("v1.3.1", "v1.3.2") and not active_config.ablate_reasoning_san:
-            _ctrl = v131_factory()
+        # shared with ReconstructController._calibrate_reasoning's own, independent ablation flag.
+        if version in ("recover_only", "full") and not active_config.ablate_reasoning_san:
+            _ctrl = recover_factory()
             if _ctrl.reasoning_sanitizer and prepared.get("messages"):
                 _t_san = time.monotonic()
                 _sanitized, _san_stats = await _sanitize_history_reasoning(
@@ -1470,8 +1463,8 @@ def create_app(
                 if _sanitized is not prepared["messages"]:
                     prepared = {**prepared, "messages": _sanitized}
 
-        if version == "v1.3.1" and prepared.get("stream"):
-            return await _run_v131_serialized_stream(
+        if version == "recover_only" and prepared.get("stream"):
+            return await _run_recover_serialized_stream(
                 active_config=active_config,
                 prepared=prepared,
                 active_trace=active_trace,
@@ -1479,11 +1472,11 @@ def create_app(
                 session_id=session_id,
                 agent_meta=agent_meta,
                 http_client_factory=http_client_factory,
-                v131_factory=v131_factory,
+                recover_factory=recover_factory,
             )
 
-        if version == "v1.3.2" and prepared.get("stream"):
-            return await _run_v132_serialized_stream(
+        if version == "full" and prepared.get("stream"):
+            return await _run_reconstruct_serialized_stream(
                 active_config=active_config,
                 prepared=prepared,
                 active_trace=active_trace,
@@ -1491,7 +1484,7 @@ def create_app(
                 session_id=session_id,
                 agent_meta=agent_meta,
                 http_client_factory=http_client_factory,
-                v132_factory=v132_factory,
+                reconstruct_factory=reconstruct_factory,
             )
 
         if prepared.get("stream"):
@@ -1499,7 +1492,7 @@ def create_app(
             # non-OpenAI-conformant SSE that strict clients (hermes) reject as an "empty stream
             # with no finish_reason". Rather than forward the raw stream, fetch a single
             # non-streaming response and re-emit it as a clean synthetic OpenAI SSE — the same
-            # serialize-then-emit approach the v1.3.x paths already use, so both arms behave
+            # serialize-then-emit approach the recover/reconstruct paths already use, so both arms behave
             # identically at the wire level and tool_calls survive.
             non_stream_body = {k: v for k, v in prepared.items() if k != "stream"}
             _t_up = time.monotonic()
@@ -1539,10 +1532,10 @@ def create_app(
         )
         # Passthrough (Vanilla / Parasite-only arms): deliver A's upstream response verbatim,
         # no TMI rewrite. The OpenAI streaming branch above already forwards raw for any
-        # non-v131/v132 version; this is the matching non-streaming return.
+        # non-passthrough engine; this is the matching non-streaming return.
         if version == "passthrough":
             return JSONResponse(status_code=status, content=data)
-        if version == "v1.3.2":
+        if version == "full":
             if status >= 400:
                 try:
                     _record_terminal_upstream_failure(
@@ -1575,7 +1568,7 @@ def create_app(
                     content={"error": "session snapshot failed before client delivery"},
                 )
             _t_handle = time.monotonic()
-            result = await v132_factory().handle(
+            result = await reconstruct_factory().handle(
                 prepared, status, data, http_client_factory,
                 conv_key=agent_meta["conv_key"],
             )
@@ -1608,7 +1601,7 @@ def create_app(
                 status_code=result.final_status, content=result.final_response
             )
 
-        if version == "v1.3.1":
+        if version == "recover_only":
             if status >= 400:
                 try:
                     _record_terminal_upstream_failure(
@@ -1641,8 +1634,8 @@ def create_app(
                     content={"error": "session snapshot failed before client delivery"},
                 )
             try:
-                event = await _record_v131_completion(
-                    v131_factory(),
+                event = await _record_recover_completion(
+                    recover_factory(),
                     prepared.get("messages", []),
                     data,
                     active_trace,
@@ -1664,7 +1657,7 @@ def create_app(
                     pass
                 return JSONResponse(status_code=status, content=data)
             if str(event.get("turn_stage") or "") == "failed":
-                # Graceful degradation: v1.3.1 returned a failure event, deliver A's original response.
+                # Graceful degradation: recover returned a failure event, deliver A's original response.
                 try:
                     _write_session_snapshot(
                         session_store=active_session_store,
@@ -1677,7 +1670,7 @@ def create_app(
                 except OSError:
                     pass
                 return JSONResponse(status_code=status, content=data)
-            data = _apply_v131_rewrite(data, event)
+            data = _apply_recover_rewrite(data, event)
             try:
                 _write_session_snapshot(
                     session_store=active_session_store,
@@ -1693,8 +1686,8 @@ def create_app(
                     content={"error": "session snapshot failed before client delivery"},
                 )
             return JSONResponse(status_code=status, content=data)
-        await _record_v131_completion(
-            v131_factory(),
+        await _record_recover_completion(
+            recover_factory(),
             prepared.get("messages", []),
             data,
             active_trace,
@@ -1742,10 +1735,10 @@ def create_app(
             f"sess_{hashlib.sha256(conv_key.encode('utf-8')).hexdigest()[:12]}"
         )
         agent_meta = _agent_metadata(request, session_id, conv_key)
-        # Same shared selector resolution as /v1/chat/completions (header wins; v1.3.3 is
-        # aliased to the v1.3.2 engine only).
+        # Same shared selector resolution as /v1/chat/completions (header wins over the
+        # configured engine).
         requested_version, version = _resolve_execution_selector(
-            request.headers.get("x-tmi-version"), active_config.version
+            request.headers.get("x-tmi-version"), active_config.engine
         )
         error_msg = _reject_unknown_selector(requested_version)
         if error_msg is not None:
@@ -1764,7 +1757,7 @@ def create_app(
             session_id,
             {
                 "event_type": "request_received",
-                "strategy_version": version,
+                "engine": version,
                 "regi": regi_meta,
                 "model": req_model,
                 "stream": client_stream,
@@ -1789,8 +1782,8 @@ def create_app(
             )
 
         # RETIRED by default — see the matching comment on the non-streaming path above.
-        if version in ("v1.3.1", "v1.3.2") and not active_config.ablate_reasoning_san:
-            _ctrl = v131_factory()
+        if version in ("recover_only", "full") and not active_config.ablate_reasoning_san:
+            _ctrl = recover_factory()
             if _ctrl.reasoning_sanitizer and prepared.get("messages"):
                 _t_san = time.monotonic()
                 _sanitized, _san_stats = await _sanitize_history_reasoning(
@@ -1807,7 +1800,7 @@ def create_app(
 
         # Always fetch serialized response from upstream for TMI rewriting
         _t_up = time.monotonic()
-        status, data = await _post_upstream_serialized_for_v131(
+        status, data = await _post_upstream_serialized(
             active_config, prepared, http_client_factory
         )
         _record_phase_timing(
@@ -1829,8 +1822,8 @@ def create_app(
         if status >= 400:
             return _anthropic_error(status, str(data))
 
-        # v1.3.1 / v1.3.2 rewriting
-        if version in ("v1.3.1", "v1.3.2"):
+        # recover_only / full rewriting
+        if version in ("recover_only", "full"):
             try:
                 _write_session_snapshot(
                     session_store=active_session_store,
@@ -1843,9 +1836,9 @@ def create_app(
             except OSError:
                 return _anthropic_error(502, "session snapshot failed before client delivery")
 
-            if version == "v1.3.2":
+            if version == "full":
                 _t_handle = time.monotonic()
-                result = await v132_factory().handle(
+                result = await reconstruct_factory().handle(
                     prepared, status, data, http_client_factory,
                     conv_key=agent_meta["conv_key"],
                 )
@@ -1864,10 +1857,10 @@ def create_app(
                 data = result.final_response
                 status = result.final_status
             else:
-                # v1.3.1
+                # recover_only
                 try:
-                    event = await _record_v131_completion(
-                        v131_factory(),
+                    event = await _record_recover_completion(
+                        recover_factory(),
                         prepared.get("messages", []),
                         data,
                         active_trace,
@@ -1878,7 +1871,7 @@ def create_app(
                     pass  # graceful degradation: deliver A's original response
                 else:
                     if str(event.get("turn_stage") or "") != "failed":
-                        data = _apply_v131_rewrite(data, event)
+                        data = _apply_recover_rewrite(data, event)
 
             try:
                 _write_session_snapshot(

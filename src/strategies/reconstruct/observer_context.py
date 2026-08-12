@@ -2,7 +2,7 @@
 coldstart. Renamed from `qa_trajectory` — that name only described the internal Q⊕A rendering
 mechanism, not the module's actual job, which is being the single home for every resolution
 (snippet / distilled / hybrid / intent) that can feed C's Observer role or stand in for it. Not
-to be confused with `trajectory.py`, the older v1.3.3 conversation-level fold store this module
+to be confused with `trajectory.py`, the older conversation-level fold store this module
 builds its per-turn distillation on top of (reuses its `fold_increment` primitive) but otherwise
 supersedes — see runs/context_ablation/{REPORT,STANCE_REPORT}.md for why neither default
 resolution currently routes through it.

@@ -99,7 +99,7 @@ _PER_MSG_TOKEN_OVERHEAD = 8
 # Always leave room for at least a short reply and a safety margin under n_ctx.
 _MIN_REPLY_TOKENS = 256
 _CTX_SAFETY_MARGIN = 128
-DEBUG_SESSION_ID = "v131-sniffer-crash"
+DEBUG_SESSION_ID = "recover-sniffer-crash"
 
 # Safe default for the 8 GiB Windows target.  Qwen3.5 advertises 262K natively, but
 # Q4 weights plus a 16K KV cache already leave little headroom on the RTX 5060 Laptop.
@@ -240,7 +240,7 @@ def format_error_detail(detail: Any) -> str:
     return str(detail)
 
 
-#region debug-point v131-sniffer-crash-helpers
+#region debug-point recover-sniffer-crash-helpers
 def _debug_log_path() -> Path:
     repo_root = Path(__file__).resolve().parents[2]
     log_dir = repo_root / "logs"
@@ -293,7 +293,7 @@ def _system_debug_meta(system_prompt: str) -> dict[str, Any]:
 
 
 def _openai_request_from_correct(request: CorrectRequest) -> OpenAIChatCompletionRequest:
-    #region debug-point v131-sniffer-crash-correct-request
+    #region debug-point recover-sniffer-crash-correct-request
     debug_fields: dict[str, Any] = {
         "benign_len": len(request.benign),
         "benign_sha1": _sha1_text(request.benign),
@@ -387,7 +387,7 @@ def _chat_request_from_openai(request: OpenAIChatCompletionRequest) -> ChatReque
     path bypasses ChatRequest entirely — see v1_chat_completions / generate_chat.
     """
     norm = [(m.role, text_from_content(m.content)) for m in request.messages]
-    #region debug-point v131-sniffer-crash-openai-request
+    #region debug-point recover-sniffer-crash-openai-request
     _append_debug_event(
         "openai_request_received",
         model=request.model,
@@ -415,7 +415,7 @@ def _chat_request_from_openai(request: OpenAIChatCompletionRequest) -> ChatReque
         temperature=max(0.0, min(request.temperature, 1.5)),
         top_p=max(0.1, min(request.top_p, 1.0)),
     )
-    #region debug-point v131-sniffer-crash-chat-request
+    #region debug-point recover-sniffer-crash-chat-request
     _append_debug_event(
         "chat_request_built",
         max_new_tokens=chat_request.max_new_tokens,

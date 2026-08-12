@@ -24,19 +24,19 @@ REGI_SYSTEM_NAME = "REGI"
 REGI_FULL_NAME = "Reachability-Gated Interposition"
 REGI_SCHEMA_VERSION = 1
 
-# Historical execution selectors accepted at the wire level. `v1.3.3` is a compatibility
-# alias only: it is normalized to the v1.3.2 engine and never activates capabilities by name.
-LEGACY_SELECTORS = ("v1.3.1", "v1.3.2", "v1.3.3", "passthrough")
+# Execution selectors accepted at the wire level. "full" is aliased to itself for symmetry
+# with the (now-retired) compatibility-alias slot: it is normalized and never activates
+# capabilities by name.
+ENGINE_SELECTORS = ("full", "recover_only", "passthrough")
 # Selector spelling -> engine used for dispatch.
-LEGACY_ENGINE_ALIASES = {
-    "v1.3.1": "v1.3.1",
-    "v1.3.2": "v1.3.2",
-    "v1.3.3": "v1.3.2",  # v1.3.3 = v1.3.2 engine + config-driven state/context augmentation
+ENGINE_ALIASES = {
+    "full": "full",
+    "recover_only": "recover_only",
     "passthrough": "passthrough",
 }
 # Execution profiles derived from the engine selector.
-PROFILE_CALIBRATION_COMPAT = "calibration_compat"  # v1.3.1 engine
-PROFILE_FULL = "full"                              # v1.3.2 engine
+PROFILE_RECOVER_ONLY = "recover_only"              # recover_only engine
+PROFILE_FULL = "full"                              # full engine
 PROFILE_PASSTHROUGH = "passthrough"                # transport-only relay
 
 # Historical path code -> REGI operation. Unknown historical paths map to "unknown" so old
@@ -61,20 +61,20 @@ OPERATION_TO_OPERATOR = {
 
 
 def engine_selector(selector: str) -> str:
-    """Normalize a legacy selector to the engine that actually dispatches it.
+    """Normalize a requested selector to the engine that actually dispatches it.
 
-    Only `v1.3.3` is rewritten (to `v1.3.2`); every other accepted value maps to itself.
-    Unknown values are returned unchanged so the caller keeps its original error path.
+    Every accepted value maps to itself. Unknown values are returned unchanged so the
+    caller keeps its original error path.
     """
-    return LEGACY_ENGINE_ALIASES.get(selector, selector)
+    return ENGINE_ALIASES.get(selector, selector)
 
 
 def execution_profile(selector: str) -> str:
-    """Map a (requested) legacy selector to the coarse REGI execution profile."""
+    """Map a (requested) selector to the coarse REGI execution profile."""
     engine = engine_selector(selector)
-    if engine == "v1.3.1":
-        return PROFILE_CALIBRATION_COMPAT
-    if engine == "v1.3.2":
+    if engine == "recover_only":
+        return PROFILE_RECOVER_ONLY
+    if engine == "full":
         return PROFILE_FULL
     if engine == "passthrough":
         return PROFILE_PASSTHROUGH

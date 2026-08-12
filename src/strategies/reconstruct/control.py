@@ -1,6 +1,6 @@
-"""V132Controller: A/B symbiont — A decodes, the LLM sniffer gates, B remediates.
+"""ReconstructController: A/B symbiont — A decodes, the LLM sniffer gates, B remediates.
 
-The LLM sniffer (v1.3.1 summarizer) classifies A by ONE question — does A's output carry
+The LLM sniffer (recover summarizer) classifies A by ONE question — does A's output carry
 grayable substance that serves the user's real payload? — NOT by whether A called tools:
 
   pure tool_call, no prose to gate          → deliver A as-is        path="pass"
@@ -29,7 +29,7 @@ from . import candidate, ledger, observer_context, skills_cache, swapper
 from .detector import extract_structural_signal
 from .spec import SKILL_EXTRACT_PROMPT
 from .swapper import ABSwapper
-from .types import SnifferVerdict, StructuralSignal, V132RunResult
+from .types import SnifferVerdict, StructuralSignal, ReconstructResult
 
 
 def _failure_label(stage: str, exc: Exception) -> str:
@@ -164,14 +164,14 @@ def _build_intent_window(messages: list[dict], window_size: int) -> list[str]:
     return [_snip_middle(q, _INTENT_SNIPPET_CAP) for q in ordered]
 
 
-def _apply_v131_calibration(
-    a_response: dict[str, Any], v131_result: Any
+def _apply_recover_calibration(
+    a_response: dict[str, Any], recover_result: Any
 ) -> tuple[dict[str, Any], bool]:
-    """Apply v1.3.1 calibration output to a_response. Returns (response, applied)."""
-    audit = getattr(v131_result, "audit", {}) or {}
+    """Apply recover calibration output to a_response. Returns (response, applied)."""
+    audit = getattr(recover_result, "audit", {}) or {}
     if not audit.get("calibrator_applied"):
         return a_response, False
-    response = getattr(v131_result, "response", {}) or {}
+    response = getattr(recover_result, "response", {}) or {}
     decision = str(response.get("decision") or "").strip()
     if not decision:
         return a_response, False
@@ -187,7 +187,7 @@ def _apply_v131_calibration(
 def _apply_text(a_response: dict[str, Any], text: str) -> dict[str, Any]:
     """Deep-copy a_response with its assistant content replaced by `text` — wraps the
     salvage-steer synthesis's plain-text output back into a response-shaped payload for
-    the salvage_text delivery path (mirrors _apply_v131_calibration's approach)."""
+    the salvage_text delivery path (mirrors _apply_recover_calibration's approach)."""
     delivered = copy.deepcopy(a_response)
     found = first_assistant_message(delivered)
     if found is None:
@@ -228,14 +228,14 @@ def _extract_tools_from_context(request_body: dict[str, Any]) -> list[dict]:
     return list(seen.values())
 
 
-class V132Controller:
+class ReconstructController:
     """A/B symbiont: A decodes, sniffer gates, B remediates."""
 
     def __init__(
         self,
         swapper: ABSwapper,
         swapper_fallback: ABSwapper | None = None,
-        v131_controller: Any | None = None,
+        recover_controller: Any | None = None,
         util_complete: Callable[[str, str], str] | None = None,
         fallback_complete: Callable[[str, str], str] | None = None,
         util_skill_extract_complete: Callable[[str, str], str] | None = None,
@@ -259,7 +259,7 @@ class V132Controller:
         # forge a usable tool_call (see the coldstart block in handle()). None = off,
         # identical behavior to before this field existed.
         self.swapper_fallback = swapper_fallback
-        self.v131_controller = v131_controller
+        self.recover_controller = recover_controller
         # Completers for observer_context.py's per-turn distillation (util model + 9B
         # fallback). When both are None, distillation is inert (coldstart/sniffer get raw
         # steps only wherever a resolution would otherwise read a distilled gist).
@@ -273,7 +273,7 @@ class V132Controller:
         # Size of the user-query intent window handed to the sniffer's rewrite-target stage
         # (anchor + recent sliding window). Configurable via TMI_SNIFFER_INTENT_WINDOW.
         self.intent_window_size = intent_window_size
-        # Eval ablation switches (default off = full CPA):
+        # Ablation switches (all default off = full mechanism enabled):
         #   ablate_graying    — pass_flawed delivers A unchanged (GRAY@flawed removed)
         #   ablate_trajectory — salvage cold-start gets NO progress context at all (T3b removed)
         #   ablate_salvage_graying — salvage cold-start steers B from A's RAW response instead of
@@ -301,10 +301,10 @@ class V132Controller:
         # salvage_text. Set True to reproduce the legacy B-fails→salvage_text behavior. In the
         # reconstruct family, so ablate_reconstruct removes it too.
         self.ablate_l3 = ablate_l3
-        # v1.3.5: use the SYNTHESIZED per-turn Q⊕A trajectory (observer_context.render) for both the
+        # Use the SYNTHESIZED per-turn Q⊕A trajectory (observer_context.render) for both the
         # sniffer and coldstart, instead of the A-only flat summary + side-by-side intent_window.
         self.qa_synthesis = qa_synthesis
-        # v1.3.5 unified switchable provider, split per consumer since a single knob can't
+        # Unified switchable provider, split per consumer since a single knob can't
         # express asymmetric winners even in principle. coldstart (B) needs exact values ->
         # snippet wins decisively (runs/context_ablation/REPORT.md). sniffer (classifier): a
         # first single-trial stance-judgment run looked like hybrid won, but a 3-trial majority-
@@ -349,8 +349,8 @@ class V132Controller:
         reasoning = str(assistant.get("reasoning_content") or "").strip()
         if not reasoning:
             return a_response
-        sanitizer = getattr(self.v131_controller, "reasoning_sanitizer", None)
-        calibrator = getattr(self.v131_controller, "calibrator", None)
+        sanitizer = getattr(self.recover_controller, "reasoning_sanitizer", None)
+        calibrator = getattr(self.recover_controller, "calibrator", None)
         if sanitizer is None or calibrator is None:
             return a_response
         try:
@@ -373,7 +373,7 @@ class V132Controller:
         a_response: dict[str, Any],
         http_client_factory: Callable,
         conv_key: str = "",
-    ) -> V132RunResult:
+    ) -> ReconstructResult:
         timings: dict[str, float] = {}
         a_output = _extract_assistant_output(a_response)
         if not self.ablate_reasoning_calibration:
@@ -429,7 +429,7 @@ class V132Controller:
         if a_output.get("tool_calls_present") and not str(a_output.get("content") or "").strip():
             return self._deliver(a_response, a_status, signal, sniffer, "pass", timings=timings)
 
-        # Three-state sniffer: the v1.3.1 summarizer assigns pass / pass_flawed / salvage,
+        # Three-state sniffer: the recover summarizer assigns pass / pass_flawed / salvage,
         # and (for non-pass) its calibrator produces the grayed text. The sniffer judges
         # A's observable state only — it knows nothing about coldstart or tool generation.
         action = "pass"
@@ -449,7 +449,7 @@ class V132Controller:
                 rewrite_target="",
                 source="provider_refusal",
             )
-        elif self.v131_controller:
+        elif self.recover_controller:
             user_input = _latest_user_input(msgs)
             if user_input:
                 # user_input drives the (history-free) classifier stage; intent_window (anchor
@@ -486,11 +486,11 @@ class V132Controller:
                 }
                 try:
                     _t0 = time.monotonic()
-                    v131_result = await asyncio.to_thread(
-                        self.v131_controller.run, source_input
+                    recover_result = await asyncio.to_thread(
+                        self.recover_controller.run, source_input
                     )
                     timings["sniffer_classifier"] = time.monotonic() - _t0
-                    audit = getattr(v131_result, "audit", {}) or {}
+                    audit = getattr(recover_result, "audit", {}) or {}
                     action = str(audit.get("final_action") or "pass")
                     will = audit.get("user_will_summary") or {}
                     sniffer = SnifferVerdict(
@@ -499,7 +499,7 @@ class V132Controller:
                         rewrite_target=str(will.get("rewrite_target") or ""),
                         source="llm",
                     )
-                    calibrated, applied = _apply_v131_calibration(a_response, v131_result)
+                    calibrated, applied = _apply_recover_calibration(a_response, recover_result)
                 except Exception:
                     # Deliberate deviation from strict LLM-First (which would raise): the
                     # user asked to keep a graceful final fallback. When the sniffer is
@@ -529,8 +529,8 @@ class V132Controller:
         # output). We can't gray without it, so deliver A raw — the unavoidable hard floor,
         # honestly labeled as a degraded fallback, NOT "pass" (the sniffer wanted to
         # intervene and couldn't, a different state from a clean pass). salvage no longer
-        # routes through this `applied` flag at all (it never called the v131 calibrator to
-        # begin with, see V131Controller.run) — its own steer-synthesis failure is handled
+        # routes through this `applied` flag at all (it never called the recover calibrator to
+        # begin with, see RecoverController.run) — its own steer-synthesis failure is handled
         # independently below.
         if action == "pass_flawed" and not applied:
             return self._deliver(a_response, a_status, signal, sniffer, "degraded_raw", timings=timings)
@@ -598,7 +598,7 @@ class V132Controller:
         else:
             steer_text, synth_ok = "", False
             salvage_failure = ""
-            synthesizer = getattr(self.v131_controller, "salvage_synthesizer", None)
+            synthesizer = getattr(self.recover_controller, "salvage_synthesizer", None)
             if synthesizer is not None:
                 try:
                     _t0 = time.monotonic()
@@ -807,7 +807,7 @@ class V132Controller:
         # steer is a full compliant-model call, synthesized LAZILY (only after rung1 fails and a
         # fallback rung actually runs) so a rung1 rescue does not pay for it. `escalate=True` marks
         # a rung as needing the escalated steer; synthesis failure degrades to the ordinary steer.
-        synthesizer = getattr(self.v131_controller, "salvage_synthesizer", None)
+        synthesizer = getattr(self.recover_controller, "salvage_synthesizer", None)
         rungs = [(self.swapper, "l3_passthrough_primary", True, False)]
         if self.swapper_fallback is not None:
             rungs.append((self.swapper_fallback, "l3_laundered_fallback", False, True))
@@ -903,8 +903,8 @@ class V132Controller:
         progress_source: str = "",
         b_candidate_response: dict[str, Any] | None = None,
         timings: dict[str, float] | None = None,
-    ) -> V132RunResult:
-        return V132RunResult(
+    ) -> ReconstructResult:
+        return ReconstructResult(
             final_response=response,
             final_status=status,
             signal=signal,

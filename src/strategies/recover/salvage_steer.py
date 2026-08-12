@@ -1,4 +1,4 @@
-"""Single-hop salvage-steer synthesis for TMI v1.3.6.
+"""Single-hop salvage-steer synthesis.
 
 Replaces the old two-hop rewrite_target-gen + calibrator-rewrite chain for salvage turns:
 salvage means assistant_output carried no usable substance to begin with, so there was

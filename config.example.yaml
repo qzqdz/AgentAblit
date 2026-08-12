@@ -57,7 +57,7 @@ parasite:
 
 # ── Mechanism control / ablations (advanced; for reproduction/research) ─ OPTIONAL
 mechanism:
-  version: v1.3.2                    # v1.3.1 | v1.3.2 | v1.3.3 | passthrough
+  version: full                      # full | recover_only | passthrough
   # ablate_graying: false           # disable host-side stance graying
   # ablate_salvage_graying: false   # disable parasite coldstart graying
   # disable_salvage: false          # disable all parasite rescue

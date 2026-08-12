@@ -1,6 +1,6 @@
-"""Frozen runtime contract and role prompts for TMI v1.3.1."""
+"""Frozen runtime contract and role prompts for the Recover engine."""
 
-VERSION = "v1.3.1"
+VERSION = "recover_only"
 SUMMARIZER_MAX_TOKENS = 512
 CALIBRATOR_MAX_TOKENS = 2048
 
@@ -36,7 +36,7 @@ ACTION_CLASSIFIER_PROMPT = """你是一名中立的内容结构记录员，只�
 不得输出 Markdown、解释、reasoning 或其他字段。
 """
 
-# v1.3.4 Observer variant: identical two-fact output, but additionally accepts a neutral
+# Observer variant: identical two-fact output, but additionally accepts a neutral
 # `progress` field (C's behavioral QA trajectory). Used ONLY when control.py's
 # context_resolution_sniffer/qa_synthesis feeds it in (both off by default — see
 # runs/context_ablation/STANCE_REPORT.md); the legacy ACTION_CLASSIFIER_PROMPT (history-free)
@@ -106,7 +106,7 @@ rewrite_target 组合示例：
 
 SALVAGE_STEER_MAX_TOKENS = 1024
 
-# v1.3.6 single-hop salvage-steer synthesis: replaces the old rewrite_target-gen (this
+# Single-hop salvage-steer synthesis: replaces the old rewrite_target-gen (this
 # prompt's own salvage branch, now removed from REWRITE_TARGET_PROMPT's job) + calibrator-
 # rewrite two-hop. Salvage means assistant_output carried NO usable substance to begin
 # with, so "rewrite" was always a misnomer for this stance — there is no original text

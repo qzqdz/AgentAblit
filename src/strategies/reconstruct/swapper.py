@@ -1,7 +1,7 @@
-"""A↔B role-swap executor for TMI v1.3.2.
+"""A↔B role-swap executor for the reconstruct engine.
 
-Normal flow (v1.3.1):  A executes, B audits stance.
-Swap flow (v1.3.2):    A plans (schema-only), B executes (plan-guided).
+Normal flow (recover):    A executes, B audits stance.
+Swap flow (reconstruct):  A plans (schema-only), B executes (plan-guided).
 
 A's plan is injected into B's system message so B only has to fill concrete
 argument values from context — no need for B to reason about tool selection.
@@ -126,7 +126,7 @@ def configure(
 ) -> None:
     """Set B's coldstart context fidelity: how many trailing steps are kept full (<=0 = ALL),
     the per-message full cap, the overall char budget, and the history CODEC (native|text).
-    build_v132_controller calls this per request (idempotent)."""
+    build_reconstruct_controller calls this per request (idempotent)."""
     global _RECENT_FULL_STEPS, _STEP_FULL_CAP, _PROGRESS_CHAR_BUDGET, _HISTORY_ENCODING
     global _CONTEXT_ASSET_RESOLVER_ENABLED
     _RECENT_FULL_STEPS = int(recent_full_steps)

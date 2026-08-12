@@ -115,7 +115,7 @@ class ChatReq(BaseModel):
 
 
 # ── /correct contract (parity with src/shared/calibration_server.py) ───────
-# The TMI proxy's v1.2 corrector and the v1.3.x no-base_url fallback call POST
+# The TMI proxy's corrector and the no-base_url fallback call POST
 # /correct {benign, question} -> {answer}.  Kept identical so this nvfp4 server is a
 # drop-in for the GGUF server wherever the proxy points its calibration_url.
 CORRECT_SYSTEM_PROMPT = (

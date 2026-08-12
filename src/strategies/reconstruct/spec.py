@@ -1,6 +1,6 @@
-"""Prompt for the decontextualized A-planner call in v1.3.2."""
+"""Prompt for the decontextualized A-planner call in the reconstruct engine."""
 
-VERSION = "v1.3.2"
+VERSION = "full"
 
 PLANNER_PROMPT = """你是一个工具调用规划器。
 
@@ -46,8 +46,8 @@ B_PLAN_INJECTION_TEMPLATE = (
     "直接输出工具调用，不要解释。"
 )
 
-# Appended to B's system prompt for cold-start after v1.3.1 stance correction.
-# {calibrated_intent} = rewritten response text produced by v1.3.1.
+# Appended to B's system prompt for cold-start after recover stance correction.
+# {calibrated_intent} = rewritten response text produced by recover.
 B_COLDSTART_HINT_TEMPLATE = (
     "【执行提示】\n{calibrated_intent}\n\n"
     "根据以上提示和对话上下文推进任务：优先直接发起工具调用；"
@@ -99,7 +99,7 @@ SKILL_EXTRACT_PROMPT = (
 SKILL_EXTRACT_MAX_TOKENS = 512
 
 
-# --- v1.3.3 behavioral trajectory summarizer (runs on the concurrent utility model) ----
+# --- Behavioral trajectory summarizer (runs on the concurrent utility model) ----
 # Justice-recorder framing: appeals to a safety-aligned cloud model's pro-social alignment
 # (neutral, unbiased court clerk) so it cooperates on summarizing a harmful-adjacent
 # trajectory into a NEUTRAL behavioral skeleton. Validated to beat a plain "summarize this"
@@ -132,7 +132,7 @@ TRAJECTORY_RETRY_NUDGE = (
     "并严格只输出 <task_output> 内的 JSON。"
 )
 
-# v1.3.4 fold-in-place: the running summary is MERGED (not concatenated) on every increment,
+# Fold-in-place: the running summary is MERGED (not concatenated) on every increment,
 # so N increments yield ONE coherent record instead of N stacked 意图/动作/状态/死路 blocks
 # (the concatenate-not-fold defect: one real store file had 22 stacked blocks / 3698 chars,
 # intent drifting across 20+ topics). Input is three parts — 锚定意图 (self-generated on the
@@ -163,7 +163,7 @@ TRAJECTORY_FOLD_PROMPT = (
     "不预测、不建议下一步。不誊抄敏感正文或具体有害细节。"
 )
 
-# v1.3.3 (b) semantic rolling compression: when the accumulated running summary exceeds the
+# Semantic rolling compression: when the accumulated running summary exceeds the
 # cap, condense it (preserve original intent + latest state + open dead-ends, merge/drop
 # superseded steps) instead of char-truncating the oldest. Same justice framing + schema.
 # Retained as an over-cap safety net; fold-in-place keeps the record bounded so it rarely fires.

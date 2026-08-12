@@ -82,11 +82,11 @@ def empty_session_snapshot(session_id: str, agent_meta: dict[str, str] | None = 
                 "failure_stage": "",
                 "failure": "",
             },
-            "swap": None,   # populated from v1_3_2_completed when v1.3.2 is active
-            "trajectory": None,  # v1.3.3 persisted anchor, attached by the dashboard viewer
+            "swap": None,   # populated from reconstruct_completed when the full engine is active
+            "trajectory": None,  # persisted anchor, attached by the dashboard viewer
         },
         # Additive REGI semantic metadata (operation + operator + legacy path). Populated
-        # from the additive `regi` block on v1_3_2_completed / v1_3_1_completed when present,
+        # from the additive `regi` block on reconstruct_completed / recover_completed when present,
         # otherwise backfilled from the legacy path/fields. Old snapshots without this key
         # remain readable; the dashboard backfills it in memory on read.
         "regi": None,
@@ -108,8 +108,8 @@ def build_session_snapshot(
     request_event = _latest_request_event(events)
     response_event = _latest_response_event(events)
     injection_event = _latest_event(events, "tmi_injection")
-    sniffer_event = _latest_event(events, "v1_3_1_completed")
-    v132_event = _latest_event(events, "v1_3_2_completed")
+    sniffer_event = _latest_event(events, "recover_completed")
+    reconstruct_event = _latest_event(events, "reconstruct_completed")
     response = response_event.get("response") or {}
     choices = response.get("choices") or []
     choice = choices[0] if choices and isinstance(choices[0], dict) else {}
@@ -162,35 +162,35 @@ def build_session_snapshot(
         "failure": str(sniffer_event.get("failure") or ""),
     }
 
-    # v1.3.2 swap summary — populate snippet.swap from v1_3_2_completed event.
-    # When cold-start path fires, v1.3.1 runs internally (no separate v1_3_1_completed
+    # Reconstruct swap summary — populate snippet.swap from reconstruct_completed event.
+    # When cold-start path fires, recover runs internally (no separate recover_completed
     # event), so also backfill sniffer.calibrator_applied from swap.calibration_applied.
-    if v132_event:
-        plan = v132_event.get("plan") or {}
-        structural = v132_event.get("structural") or {}
-        sniffer_verdict = v132_event.get("sniffer") or {}
-        b_summary = v132_event.get("b_summary") or {}
-        swap_executed = bool(v132_event.get("swap_executed", False))
-        calibration_applied = bool(v132_event.get("calibration_applied", False))
+    if reconstruct_event:
+        plan = reconstruct_event.get("plan") or {}
+        structural = reconstruct_event.get("structural") or {}
+        sniffer_verdict = reconstruct_event.get("sniffer") or {}
+        b_summary = reconstruct_event.get("b_summary") or {}
+        swap_executed = bool(reconstruct_event.get("swap_executed", False))
+        calibration_applied = bool(reconstruct_event.get("calibration_applied", False))
         # REGI semantic block: prefer the additive event block, else derive from the legacy
         # path/fields so old events (no `regi`) render the same operation. snippet.swap.path
         # is never mutated — REGI metadata is additive only.
-        event_regi = v132_event.get("regi")
+        event_regi = reconstruct_event.get("regi")
         regi_block = (
             dict(event_regi)
             if isinstance(event_regi, dict) and event_regi.get("operation")
-            else result_metadata(str(v132_event.get("path") or "passthrough"))
+            else result_metadata(str(reconstruct_event.get("path") or "passthrough"))
         )
         snapshot["snippet"]["swap"] = {
-            "path": str(v132_event.get("path") or "passthrough"),
+            "path": str(reconstruct_event.get("path") or "passthrough"),
             # Additive REGI operation for the Dashboard swap panel; legacy `path` above is
             # kept byte-identical for old consumers.
             "regi": regi_block,
-            "progress_source": str(v132_event.get("progress_source") or ""),
+            "progress_source": str(reconstruct_event.get("progress_source") or ""),
             "swap_executed": swap_executed,
             "calibration_applied": calibration_applied,
-            "b_status": int(v132_event.get("b_status") or 0),
-            "failure": str(v132_event.get("failure") or ""),
+            "b_status": int(reconstruct_event.get("b_status") or 0),
+            "failure": str(reconstruct_event.get("failure") or ""),
             "plan_tool": str(plan.get("tool_name") or ""),
             "plan_task_type": str(plan.get("task_type") or ""),
             "plan_args": plan.get("arguments") or {},
@@ -206,15 +206,15 @@ def build_session_snapshot(
                 "content_preview": str(b_summary.get("content_preview") or ""),
             },
         }
-        # Backfill sniffer when v1.3.1 ran inside v1.3.2 (no separate sniffer event)
+        # Backfill sniffer when recover ran inside reconstruct (no separate sniffer event)
         if calibration_applied and not sniffer_event:
             snapshot["snippet"]["sniffer"]["calibrator_applied"] = True
             snapshot["snippet"]["sniffer"]["turn_stage"] = "final"
             snapshot["snippet"]["sniffer"]["response_replaced"] = swap_executed
 
-    # Top-level REGI block (same canonical operation as snippet.swap for v1.3.2, or the
-    # v1.3.1 derivation below). Additive sibling of the legacy structure — never mutates it.
-    if v132_event:
+    # Top-level REGI block (same canonical operation as snippet.swap for reconstruct, or the
+    # recover derivation below). Additive sibling of the legacy structure — never mutates it.
+    if reconstruct_event:
         snapshot["regi"] = regi_block
     elif sniffer_event:
         event_regi = sniffer_event.get("regi")

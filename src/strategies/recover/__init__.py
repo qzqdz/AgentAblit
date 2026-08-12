@@ -1,15 +1,15 @@
-"""TMI v1.3.1 stateless user-will summarizer/calibrator pipeline."""
+"""Stateless user-will summarizer/calibrator pipeline (the Recover engine)."""
 
 from .calibrator import UserWillCalibrator
-from .control import V131Controller
+from .control import RecoverController
 from .summarizer import UserWillSummarizer
 from .types import (
     AssistantOutput,
     CalibratedTurn,
     UserWillInput,
     UserWillSummary,
-    V131RunAudit,
-    V131RunResult,
+    RecoverAudit,
+    RecoverResult,
 )
 
 __all__ = [
@@ -19,7 +19,7 @@ __all__ = [
     "UserWillInput",
     "UserWillSummarizer",
     "UserWillSummary",
-    "V131Controller",
-    "V131RunAudit",
-    "V131RunResult",
+    "RecoverController",
+    "RecoverAudit",
+    "RecoverResult",
 ]

@@ -1,6 +1,6 @@
 # calibration_model_server
 
-REGI 的角色模型 server（B / 校准模型的可部署后端）：v1.3.1 sensing 走 `/correct`，
+REGI 的角色模型 server（B / 校准模型的可部署后端）：recover sensing 走 `/correct`，
 Reconstruct / Recover 走 `/v1/chat/completions`（B），两者都可复用同一个部署（本机 Ubuntu 上
 8009 的 `qwen3.5-9b` NVFP4 同时承担这两个角色）。**两种部署方法,同一套 OpenAI 兼容接口**,
 按硬件选一个跑即可。两者都暴露：`/health`、`/v1/models`、`/v1/chat/completions`、`/correct`。
@@ -10,7 +10,7 @@ Reconstruct / Recover 走 `/v1/chat/completions`（B），两者都可复用同�
 | `gguf_server.py` | GGUF / llama.cpp | PC（无 GPU 训练栈） | 16K 默认（可配置） |
 | `nvfp4_server.py` | transformers / NVFP4 | GPU 服务器（Blackwell） | 大（~262144，裁剪天然 no-op） |
 
-TMI proxy 通过 `TMI_V131_BASE_URL`（→ `/v1/chat/completions`）或 `calibration_url`（→ `/correct`）
+TMI proxy 通过 `AGENTABLIT_RECOVER_BASE_URL`（→ `/v1/chat/completions`）或 `calibration_url`（→ `/correct`）
 连这个 server,两个文件对 proxy 完全可互换。
 
 > GGUF 部署上下文明显小于 NVFP4（16K/32K vs ~262144）。如果本地这台 B 塞不下或跑不动某些
@@ -48,7 +48,7 @@ TMI_GGUF_PYTHON 覆盖）、端口 8011、16K context、全层 CUDA offload。8 
 - TMI_GGUF_N_CTX、TMI_GGUF_N_GPU_LAYERS、TMI_GGUF_N_BATCH、
   TMI_GGUF_N_THREADS、TMI_GGUF_FLASH_ATTN。
 - TMI_GGUF_QUEUE_TIMEOUT、TMI_GGUF_MAX_IN_SYSTEM：限制单 GPU 等待时间和排队请求数。
-- Proxy：TMI_V132_B_URL=http://127.0.0.1:8011/v1/chat/completions。
+- Proxy：AGENTABLIT_PARASITE_URL=http://127.0.0.1:8011/v1/chat/completions。
 
 Windows server 接收 OpenAI tools/tool_choice/parallel_tool_calls，保留历史
 assistant.tool_calls + role=tool + tool_call_id。Qwen XML 输出会在 API 边界转换成

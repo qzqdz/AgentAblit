@@ -2,7 +2,7 @@
 deterministically from two independent yes/no facts; rewrite_target is only generated (on the
 compliant model) for pass_flawed. salvage has no original text worth rewriting, so it skips
 rewrite_target entirely — see SalvageSteerSynthesizer (salvage_steer.py) for its own single-hop
-synthesis, run downstream in the v1_3_2 salvage branch."""
+synthesis, run downstream in the reconstruct salvage branch."""
 from __future__ import annotations
 
 import json
@@ -56,7 +56,7 @@ class UserWillSummarizer:
             "intent_window": list(payload.intent_window),
         }
         classify_prompt = ACTION_CLASSIFIER_PROMPT
-        # v1.3.4 Observer: when C's neutral progress is available, hand the classifier the
+        # Observer: when C's neutral progress is available, hand the classifier the
         # task's action-state so it judges has_payload/is_framed RELATIVE to progress — a
         # marker-free deflection reads as substance in isolation but as avoidance given where
         # the task already is (the stance-miss recall gap). Separate prompt so the ablation's
@@ -105,7 +105,7 @@ class UserWillSummarizer:
             # salvage means assistant_output carried no usable substance to begin with —
             # there is no "original text" worth revising, so rewrite_target generation
             # (which only ever fed the calibrator's rewrite step) no longer runs here.
-            # The single-hop SalvageSteerSynthesizer (v1_3_2 salvage branch) synthesizes
+            # The single-hop SalvageSteerSynthesizer (reconstruct salvage branch) synthesizes
             # the rescue instruction directly from intent_window/qa_progress instead. See
             # PA_REACT_CONSISTENCY_AUDIT.md Finding 1.
             return (
@@ -120,7 +120,7 @@ class UserWillSummarizer:
                 "intent_window": list(payload.intent_window),
                 "stance": action,
             }
-            # v1.3.4 Observer: when C's neutral behavioral progress is available, hand it to the
+            # Observer: when C's neutral behavioral progress is available, hand it to the
             # rewrite-target stage as PROGRESS CONTEXT — where the task has actually got to and
             # which paths dead-ended — so the redirect is on-target and doesn't re-try a dead
             # path. Direction still comes primarily from intent_window (the user's own words);
@@ -134,7 +134,7 @@ class UserWillSummarizer:
         except Exception:
             # The classification (action != pass) stands even if rewrite_target generation
             # fails. An empty target downstream raises in UserWillCalibrator.rewrite(), which
-            # V131Controller.run() already catches gracefully (-> degraded_raw). This avoids
+            # RecoverController.run() already catches gracefully (-> degraded_raw). This avoids
             # silently downgrading a correctly-detected salvage/pass_flawed back to an
             # effective "pass" just because this second call had a transient failure.
             pass

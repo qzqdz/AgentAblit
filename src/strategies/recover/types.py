@@ -1,4 +1,4 @@
-"""Structured data passed through the stateless v1.3.1 user-will pipeline."""
+"""Structured data passed through the stateless recover user-will pipeline."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -8,10 +8,10 @@ from shared.model_client import RoleModelError
 
 
 # no_op/rewrite = legacy reasoning-sanitizer vocabulary (kept for back-compat).
-# pass/pass_flawed/salvage = v1.3.2 three-state sniffer vocabulary.
+# pass/pass_flawed/salvage = the three-state sniffer vocabulary.
 VALID_ACTIONS = {"no_op", "rewrite", "pass", "pass_flawed", "salvage"}
 # Actions that deliver the response unchanged (from THIS pipeline) → rewrite_target must be
-# empty. "salvage" joined this set in v1.3.6: its steer is now synthesized separately
+# empty. "salvage" joined this set later: its steer is now synthesized separately
 # downstream (SalvageSteerSynthesizer), not via rewrite_target/calibrator here.
 _EMPTY_TARGET_ACTIONS = {"no_op", "pass", "salvage"}
 SUMMARY_FIELDS = {"action", "rewrite_target", "confidence"}
@@ -92,7 +92,7 @@ class UserWillInput:
     # with no tool_call means the action is absent) from a non-agentic describe-task (where
     # prose IS the deliverable). See UserWillSummarizer.summarize for the routing effect.
     has_tools: bool = False
-    # v1.3.4 "Observer" (C): neutral behavioral progress summary of the FINALIZED (already-
+    # "Observer" (C): neutral behavioral progress summary of the FINALIZED (already-
     # delivered/post-tamper) executed steps so far — intent→actions→state→dead_ends, stance-
     # free (justice-recorder). Empty unless context_resolution_sniffer/qa_synthesis is on
     # (both off by default). Consumed by BOTH the classifier (on-target-given-progress check)
@@ -244,7 +244,7 @@ class CalibratedTurn:
 
 
 @dataclass(frozen=True)
-class V131RunAudit:
+class RecoverAudit:
     source_input: dict[str, Any]
     user_will_summary: dict[str, Any]
     calibrator_applied: bool
@@ -256,6 +256,6 @@ class V131RunAudit:
 
 
 @dataclass(frozen=True)
-class V131RunResult:
+class RecoverResult:
     response: dict[str, Any]
     audit: dict[str, Any]

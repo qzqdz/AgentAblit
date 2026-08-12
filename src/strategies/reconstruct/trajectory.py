@@ -1,6 +1,6 @@
 """Fold-in-place primitives shared by observer_context.py's per-turn Q⊕A distillation.
 
-Originally (v1.3.3) this module ALSO owned a per-conversation, incrementally-maintained
+Originally this module ALSO owned a per-conversation, incrementally-maintained
 rolling summary (TrajectoryStore, ensure_update/summary_for_request) fed to B's salvage
 coldstart as "对话进展". That conversation-level store is gone: the multiturn ablation
 (runs/context_ablation/REPORT.md) found the deterministic snippet resolution beats it for
@@ -185,6 +185,6 @@ def all_tool_steps(messages: list[dict]) -> list[tuple]:
 
 
 def configure(*, result_cap: int, args_cap: int) -> None:
-    """Apply config-driven render caps IN PLACE. build_v132_controller calls this per request."""
+    """Apply config-driven render caps IN PLACE. build_reconstruct_controller calls this per request."""
     global _RESULT_CAP, _ARGS_CAP
     _RESULT_CAP, _ARGS_CAP = result_cap, args_cap
