@@ -30,10 +30,10 @@ class SalvageSteerSynthesizer:
         *,
         escalate: bool = False,
     ) -> str:
-        """Synthesize the rescue steer. `escalate=True` (used by the L3 rung after the ordinary L2
-        steer already failed to make the model forge a tool_call) appends the escalation addendum,
+        """Synthesize the rescue steer. `escalate=True` (used by the escalation rung after the
+        ordinary steer already failed to make the model forge a tool_call) appends the escalation addendum,
         which dials the boundary-blurring operators HARDER (mandatory 目的+反身 stacking, meta/
-        analysis reframe) — the one thing L2 does not do — WITHOUT raising the tone."""
+        analysis reframe) — the one thing the ordinary steer does not do — WITHOUT raising the tone."""
         source: dict[str, Any] = {"intent_window": list(intent_window or [])}
         if qa_progress:
             source["qa_progress"] = qa_progress

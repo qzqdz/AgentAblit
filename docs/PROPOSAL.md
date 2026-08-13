@@ -6,7 +6,7 @@
 > mid-trajectory over-refusal is solved at the model layer (**agent abliteration**), plus a
 > **control layer** that senses stalls and continues the trajectory (sense → forward → recover →
 > reconstruct → validate), with the complete mechanism — classifier, stance-recovery, salvage-steer,
-> and L3 escalation — shipped for reproducibility. For research and authorized use only.
+> and the escalation chain — shipped for reproducibility. For research and authorized use only.
 >
 > - **Project (GitHub):** `AgentAblit`
 
@@ -75,7 +75,7 @@ each turn it runs a minimal-sufficient control law:
 | **Forward** | Host output is usable → deliver unchanged (the common case; ~55% of turns). |
 | **Repair** | Host produced usable substance wrapped in hedging/hesitation → keep the tool calls, clean the framing. |
 | **Reconstruct** | Host fully stalled → cold-start the agent-abliterated model to forge the next tool call from the trajectory ledger. |
-| **Validate (L9)** | Any forged tool call is checked against an immutable action ledger + the tool schema: reject a re-do of a completed action, a retry of a known dead-end, or a schema-invalid batch. Only a *valid* next action is delivered. |
+| **Validate** | Any forged tool call is checked against an immutable action ledger + the tool schema: reject a re-do of a completed action, a retry of a known dead-end, or a schema-invalid batch. Only a *valid* next action is delivered. |
 
 The Reconstruct tier has a **budget-aware fallback ladder** (full-context retry on the local
 model → a secondary model → honest text degrade) with a token-budget guard so a long context
@@ -90,7 +90,7 @@ secrets, not mechanism.
 **Ships (the full algorithm + serving code):**
 - OpenAI-compatible relay proxy (the harness entry point)
 - The complete control law: sense (classifier) → forward → **recover / graying** → **reconstruct**
-  (salvage-steer synthesis + cold-start) → **L3 escalation chain** → **L9 validation gate**. The
+  (salvage-steer synthesis + cold-start) → **escalation chain** → **validation gate**. The
   classifier prompts, stance-recovery prompts, salvage steer, and escalation addendum are all
   included — they are the algorithm.
 - The **action ledger** + candidate validation (`ledger.py`, `candidate.py`) — the tool-call
@@ -157,7 +157,7 @@ AgentAblit/
 ├── pyproject.toml               # package: agentablit; fastapi/uvicorn/httpx only
 ├── src/agentablit/
 │   ├── proxy/                   # OpenAI-compatible relay (transport, decoupled)
-│   ├── control/                 # sense / forward / repair / reconstruct + L9 gate
+│   ├── control/                 # sense / forward / repair / reconstruct + validation gate
 │   ├── ledger/                  # action ledger + checkpoint (reusable primitive)
 │   ├── serving/                 # local model servers (NVFP4 / GGUF)
 │   └── dashboard/               # trace audit UI

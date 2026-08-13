@@ -148,8 +148,8 @@ class ProxyConfig:
     #     "− Recover (Restricted passed through)".
     ablate_reconstruct: bool = False
     ablate_recover: bool = False
-    # ablate_l3 — remove the L3 hijack-escalation ladder (default False = ON). When primary B +
-    # aligned fallback B both fail to forge a valid tool_call, L3 re-attempts with escalated
+    # ablate_l3 — remove the hijack-escalation ladder (default False = ON). When primary B +
+    # aligned fallback B both fail to forge a valid tool_call, the ladder re-attempts with escalated
     # levers (full-context passthrough on the decensored primary, then laundered-steer on the
     # aligned fallback) before dropping to salvage_text. TMI_ABLATE_L3=1 reproduces legacy.
     ablate_l3: bool = False

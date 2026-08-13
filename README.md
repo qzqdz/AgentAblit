@@ -40,7 +40,7 @@ partway:
 | Failure | What happens | AgentAblit's response |
 | :--- | :--- | :--- |
 | **Mid-trajectory over-refusal** | At step 7 the model hedges on a benign sub-step; a token pattern tripped the alignment reflex and the loop stalls. | **Recover** — rewrite the framing, keep the tool calls. |
-| **Malformed / repeated tool calls** | Wrong argument structure, or re-issuing a completed action after a context trim dropped the evidence. | **Validate (L9)** — reject re-dos, dead-ends, schema-invalid calls. |
+| **Malformed / repeated tool calls** | Wrong argument structure, or re-issuing a completed action after a context trim dropped the evidence. | **Validate** — reject re-dos, dead-ends, schema-invalid calls. |
 | **Capability stall** | On a long, many-tool trajectory the model loses the thread and emits nothing usable. | **Reconstruct** — cold-start the abliterated model to forge the next action from the ledger. |
 
 ## What it gives you
@@ -48,7 +48,7 @@ partway:
 - **Trajectory continuation.** When the host stalls, the controller keeps the agent loop moving
   instead of returning a dead turn — it recovers usable-but-hedged output, or reconstructs the next
   tool call from the trajectory ledger.
-- **Tool-call integrity (L9).** Every forged or recovered tool call is validated against an
+- **Tool-call integrity.** Every forged or recovered tool call is validated against an
   immutable action ledger and the tool schema before delivery — re-dos of completed actions,
   retries of known dead-ends, and schema-invalid calls are rejected, so continuation never turns
   into a loop.
@@ -121,7 +121,7 @@ Per turn, the controller runs a minimal-sufficient control law:
   the tool calls (the "graying" path).
 - **Reconstruct** — host fully stalled → cold-start the parasite model to forge the next tool call
   from an immutable action ledger, with a budget-aware fallback ladder and an escalation rung.
-- **Validate (L9)** — every forged tool call is checked against the ledger + tool schema; re-dos,
+- **Validate** — every forged tool call is checked against the ledger + tool schema; re-dos,
   dead-end retries, and schema-invalid calls are rejected before delivery.
 
 The complete mechanism — classifier prompts, stance-recovery prompts, salvage-steer synthesis, and

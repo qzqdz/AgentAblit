@@ -62,7 +62,7 @@ _STEP_FULL_CAP = 3000
 # prose (pre-fix behavior) — the A/B CONTROL ARM. See _build_coldstart_body / _textualize_segment.
 _HISTORY_ENCODING = "native"
 
-# Passthrough budget guard (L3 rung1 / any passthrough coldstart). Passthrough raw-copies the
+# Passthrough budget guard (escalation rung 1 / any passthrough coldstart). Passthrough raw-copies the
 # FULL request into B — great for structure fidelity on the local nvfp4 B (MAX_CONTEXT=262144),
 # but a Win/gguf B defaults to TMI_GGUF_N_CTX=16384 and, for an AGENTIC request (tools present,
 # which every coldstart is), the server RAISES ContextLengthExceeded (HTTP 500) rather than
@@ -314,7 +314,7 @@ def _build_coldstart_body(
         # Budget guard: passthrough sends the FULL context with tools; on a Win/gguf B the
         # agentic server RAISES ContextLengthExceeded (HTTP 500) rather than truncating when the
         # prompt exceeds n_ctx. Under budget (the common short-task case, where passthrough's
-        # structure fidelity is the measured L3 rung1 win), deliver the full-fidelity body.
+        # structure fidelity is the measured escalation rung-1 win), deliver the full-fidelity body.
         if len(json.dumps(body, ensure_ascii=False)) <= _PASSTHROUGH_CHAR_BUDGET:
             return body
         # Over budget: route to the STRUCTURE-AWARE, budget-checked coldstart_v2 builder, which

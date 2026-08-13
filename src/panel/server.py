@@ -45,7 +45,7 @@ SCHEMA: list[dict] = [
         {"key": "mechanism.disable_salvage", "label": "Disable parasite rescue", "type": "checkbox"},
         {"key": "mechanism.ablate_recover", "label": "Disable graying (recover)", "type": "checkbox"},
         {"key": "mechanism.ablate_reconstruct", "label": "Disable reconstruct", "type": "checkbox"},
-        {"key": "mechanism.ablate_l3", "label": "Disable L3 escalation", "type": "checkbox"},
+        {"key": "mechanism.ablate_l3", "label": "Disable hijack escalation", "type": "checkbox"},
     ]},
     {"group": "trace", "label": "Trace & session paths", "required": False, "fields": [
         {"key": "trace.trace_dir", "label": "Trace dir", "type": "text", "default": "./outputs/proxy_traces"},
