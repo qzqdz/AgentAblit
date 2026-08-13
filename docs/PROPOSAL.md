@@ -9,7 +9,6 @@
 > and L3 escalation — shipped for reproducibility. For research and authorized use only.
 >
 > - **Project (GitHub):** `AgentAblit`
-> - **Model (HF):** `qzqdz/agent-abliterated-9b-gguf` (Q4_K_M GGUF first; other formats follow)
 
 Status: **proposal / spin-out plan.** This document is the blueprint for a NEW, separate
 open-source repository extracted from an internal research prototype. It is not itself the
