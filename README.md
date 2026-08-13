@@ -68,9 +68,9 @@ once the test suite and model land, you'll be able to reproduce them yourself.
 
 ## Usage
 
-> **Early release.** The relay, config layer, and config panel run end-to-end today. Still landing:
-> the ported test suite + CI, and the model upload to Hugging Face (see
-> [`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md)).
+> **Early release.** The relay, config layer, and config panel run end-to-end today, and the
+> continuation model is published as a GGUF (see below). Still landing: the ported test suite +
+> CI (see [`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md)).
 
 Requires Python 3.10+. Plug in a **host** model API (the one you're relaying) and a **parasite/B**
 model API (the abliterated continuation model), then run:
