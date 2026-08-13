@@ -10,7 +10,6 @@
 
 <p align="center">
   <a href="https://huggingface.co/qzqdz/agent-abliterated-9b-gguf"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-agent--abliterated--9b--gguf-ffd21e?style=for-the-badge" alt="HuggingFace model"/></a>
-  <a href="docs/PROPOSAL.md"><img src="https://img.shields.io/badge/Docs-Proposal-8b5cf6?style=for-the-badge&logo=readme&logoColor=white" alt="Proposal"/></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Read%20first-SECURITY.md-0ea5e9?style=for-the-badge" alt="SECURITY.md"/></a>
 </p>
 
@@ -62,15 +61,14 @@ partway:
 - **Drop-in & observable.** OpenAI-compatible on both ends (point your agent at the proxy),
   configured from one YAML/JSON file, with a trace/audit view and a config panel.
 
-The design is measured on real recorded multi-step trajectories; the methodology and quantitative
-evaluation live in [`docs/PROPOSAL.md`](docs/PROPOSAL.md) rather than as headline numbers here —
-once the test suite and model land, you'll be able to reproduce them yourself.
+The design is measured on real recorded multi-step trajectories; once the test suite lands,
+you'll be able to reproduce the numbers yourself.
 
 ## Usage
 
 > **Early release.** The relay, config layer, and config panel run end-to-end today, and the
 > continuation model is published as a GGUF (see below). Still landing: the ported test suite +
-> CI (see [`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md)).
+> CI.
 
 Requires Python 3.10+. Plug in a **host** model API (the one you're relaying) and a **parasite/B**
 model API (the abliterated continuation model), then run:
@@ -129,8 +127,7 @@ Per turn, the controller runs a minimal-sufficient control law:
 The complete mechanism — classifier prompts, stance-recovery prompts, salvage-steer synthesis, and
 the escalation chain — ships here; it *is* the algorithm. The willingness that makes reconstruct
 effective comes from the **model layer** (agent abliteration on a public abliterated base), not from
-ever-more-elaborate prompting. See [`docs/PROPOSAL.md`](docs/PROPOSAL.md) for the mechanism map and
-[`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md) for the model.
+ever-more-elaborate prompting.
 
 - **Model (HuggingFace):** [`qzqdz/agent-abliterated-9b-gguf`](https://huggingface.co/qzqdz/agent-abliterated-9b-gguf) *(Q4_K_M GGUF)*
 
