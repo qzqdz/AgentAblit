@@ -106,6 +106,25 @@ The panel is a form UI over the same `config.yaml`. Because the backend is one p
 file, an agent (e.g. Claude Code) can configure and debug AgentAblit by editing `config.yaml`
 directly — or by `POST`ing to `/api/config`. Human and agent configure through the same file.
 
+<p align="center">
+  <img src="assets/config-panel.png" alt="AgentAblit config panel" width="760"/>
+</p>
+
+**Audit dashboard (optional):**
+
+```sh
+uvicorn dashboard.server:app --port 8788   # http://127.0.0.1:8788/
+```
+
+The dashboard renders the recorded proxy traces: per-session event timelines, the controller's
+per-turn verdict (forward / recover / reconstruct), calibration state, and the last-turn analysis
+(original response, reasoning, rewrite target). It reads the same `outputs/proxy_traces` the relay
+writes — no extra wiring.
+
+<p align="center">
+  <img src="assets/dashboard.png" alt="AgentAblit audit dashboard" width="760"/>
+</p>
+
 **Serving the abliterated model locally (optional):** `calibration_model_server/` is an
 OpenAI-compatible server (Transformers + NVFP4, or llama.cpp GGUF). Point `parasite.url` at it, or
 at any OpenAI-compatible endpoint.
