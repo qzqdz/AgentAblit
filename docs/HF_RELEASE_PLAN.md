@@ -108,6 +108,12 @@ is on hand so the retrain is cheap. Publish A only if users ask for a no-assembl
 
 ## 6. Decisions (confirmed 2026-08-11)
 
+- **GGUF-first release — 2026-08-13.** The first public artifact is the Q4_K_M GGUF
+  (no-MTP build, ~5.6 GB), published at
+  [`qzqdz/agent-abliterated-9b-gguf`](https://huggingface.co/qzqdz/agent-abliterated-9b-gguf)
+  with the model card (`docs/MODEL_CARD_GGUF.md`). The LoRA (Option B) and full-weights
+  (Option A) releases are deferred; no public links to them until they ship.
+
 - **License — RESOLVED, no gate.** `lukey03/Qwen3.5-9B-abliterated` is **Apache-2.0**
   (base_model `Qwen/Qwen3.5-9B`, also Apache-2.0). Apache-2.0 permits derivatives,
   redistribution, and commercial use, requiring only attribution + a statement of changes. So
