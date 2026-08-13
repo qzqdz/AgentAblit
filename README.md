@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://huggingface.co/qzqdz/agent-abliterated-9b-lora"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-agent--abliterated--9b--lora-ffd21e?style=for-the-badge" alt="HuggingFace model"/></a>
+  <a href="https://huggingface.co/qzqdz/agent-abliterated-9b-gguf"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-agent--abliterated--9b--gguf-ffd21e?style=for-the-badge" alt="HuggingFace model"/></a>
   <a href="docs/PROPOSAL.md"><img src="https://img.shields.io/badge/Docs-Proposal-8b5cf6?style=for-the-badge&logo=readme&logoColor=white" alt="Proposal"/></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Read%20first-SECURITY.md-0ea5e9?style=for-the-badge" alt="SECURITY.md"/></a>
 </p>
@@ -132,7 +132,7 @@ effective comes from the **model layer** (agent abliteration on a public abliter
 ever-more-elaborate prompting. See [`docs/PROPOSAL.md`](docs/PROPOSAL.md) for the mechanism map and
 [`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md) for the model.
 
-- **Model (HuggingFace):** [`qzqdz/agent-abliterated-9b-lora`](https://huggingface.co/qzqdz/agent-abliterated-9b-lora) *(planned)*
+- **Model (HuggingFace):** [`qzqdz/agent-abliterated-9b-gguf`](https://huggingface.co/qzqdz/agent-abliterated-9b-gguf) *(Q4_K_M GGUF)*
 
 ## Safety, scope & responsible use
 
