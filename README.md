@@ -147,6 +147,4 @@ AgentAblit is **dual-use security-research code.** Read [`SECURITY.md`](SECURITY
 
 ## License
 
-[Apache-2.0](LICENSE). The model derives from
-[`lukey03/Qwen3.5-9B-abliterated`](https://huggingface.co/lukey03/Qwen3.5-9B-abliterated)
-(Apache-2.0, base `Qwen/Qwen3.5-9B`); attribution is preserved per that license.
+[Apache-2.0](LICENSE). See [`NOTICE`](NOTICE) for third-party attribution.
