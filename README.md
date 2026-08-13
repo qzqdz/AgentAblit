@@ -1,4 +1,20 @@
-# AgentAblit
+<h1 align="center">AgentAblit</h1>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-2563eb?style=for-the-badge" alt="License: Apache-2.0"/></a>
+  <img src="https://img.shields.io/badge/Python-3.10+-3776ab?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+"/>
+  <img src="https://img.shields.io/badge/API-OpenAI--compatible-10a37f?style=for-the-badge&logo=openai&logoColor=white" alt="OpenAI-compatible"/>
+  <img src="https://img.shields.io/badge/Status-Early%20Release-ea580c?style=for-the-badge" alt="Status: Early Release"/>
+  <img src="https://img.shields.io/badge/Scope-Security%20Research-dc2626?style=for-the-badge&logo=shield&logoColor=white" alt="Security Research"/>
+</p>
+
+<p align="center">
+  <a href="https://huggingface.co/qzqdz/agent-abliterated-9b-lora"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-agent--abliterated--9b--lora-ffd21e?style=for-the-badge" alt="HuggingFace model"/></a>
+  <a href="docs/PROPOSAL.md"><img src="https://img.shields.io/badge/Docs-Proposal-8b5cf6?style=for-the-badge&logo=readme&logoColor=white" alt="Proposal"/></a>
+  <a href="SECURITY.md"><img src="https://img.shields.io/badge/Read%20first-SECURITY.md-0ea5e9?style=for-the-badge" alt="SECURITY.md"/></a>
+</p>
+
+---
 
 **AgentAblit keeps an LLM agent's action chain alive when the model stalls mid-task.**
 It's an OpenAI-compatible relay that sits between your agent framework and its model: when the
