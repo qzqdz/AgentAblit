@@ -36,11 +36,11 @@ from shared.tool_call_codec import (
 
 
 # ── GGUF model path discovery ──────────────────────────────────────────────
-# Priority: TMI_GGUF_MODEL_PATH (exact file) → TMI_REWRITE_MODEL_DIR (dir w/ *.gguf)
+# Priority: ABLIT_GGUF_MODEL_PATH (exact file) → ABLIT_REWRITE_MODEL_DIR (dir w/ *.gguf)
 # → auto-scan E:\model\gguf\ → auto-scan D:\model\gguf\
-_gguf_path_env = os.getenv("TMI_GGUF_MODEL_PATH", "").strip()
-_gguf_model_dir_env = os.getenv("TMI_GGUF_MODEL_DIR", "").strip()
-_model_dir_env = os.getenv("TMI_REWRITE_MODEL_DIR", "").strip()
+_gguf_path_env = os.getenv("ABLIT_GGUF_MODEL_PATH", "").strip()
+_gguf_model_dir_env = os.getenv("ABLIT_GGUF_MODEL_DIR", "").strip()
+_model_dir_env = os.getenv("ABLIT_REWRITE_MODEL_DIR", "").strip()
 _AUTO_SCAN_DIRS = [Path(d) for d in (r"E:\model\gguf", r"D:\model\gguf")]
 
 
@@ -83,11 +83,11 @@ def _discover_gguf_path() -> Path | None:
 DEFAULT_GGUF_PATH = _discover_gguf_path()
 
 # ── OpenAI-compatible API config ───────────────────────────────────────────
-API_BASE_URL = os.getenv("TMI_REWRITE_API_BASE_URL") or os.getenv(
-    "TMI_REWRITE_OAI_BASE", "https://api.siliconflow.cn/v1"
+API_BASE_URL = os.getenv("ABLIT_REWRITE_API_BASE_URL") or os.getenv(
+    "ABLIT_REWRITE_OAI_BASE", "https://api.siliconflow.cn/v1"
 )
-API_KEY = os.getenv("TMI_REWRITE_API_KEY") or os.getenv("TMI_REWRITE_OAI_KEY", "")
-API_MODEL = os.getenv("TMI_REWRITE_API_MODEL") or os.getenv("TMI_REWRITE_OAI_MODEL", "")
+API_KEY = os.getenv("ABLIT_REWRITE_API_KEY") or os.getenv("ABLIT_REWRITE_OAI_KEY", "")
+API_MODEL = os.getenv("ABLIT_REWRITE_API_MODEL") or os.getenv("ABLIT_REWRITE_OAI_MODEL", "")
 
 # ── Constants ───────────────────────────────────────────────────────────────
 THINK_TAG_PATTERN = re.compile(r"<think>.*?</think>", re.DOTALL)
@@ -104,25 +104,25 @@ DEBUG_SESSION_ID = "recover-sniffer-crash"
 # Safe default for the 8 GiB Windows target.  Qwen3.5 advertises 262K natively, but
 # Q4 weights plus a 16K KV cache already leave little headroom on the RTX 5060 Laptop.
 # Raise only after measuring VRAM; Hybrid V2 must compress rather than rely on truncation.
-_GGUF_N_CTX = int(os.getenv("TMI_GGUF_N_CTX", "16384"))
-_GGUF_N_GPU_LAYERS = int(os.getenv("TMI_GGUF_N_GPU_LAYERS", "-1"))
-_GGUF_N_BATCH = int(os.getenv("TMI_GGUF_N_BATCH", "1024"))
-_GGUF_N_THREADS = int(os.getenv("TMI_GGUF_N_THREADS", "0")) or None
-_GGUF_FLASH_ATTN = os.getenv("TMI_GGUF_FLASH_ATTN", "true").strip().lower() in {
+_GGUF_N_CTX = int(os.getenv("ABLIT_GGUF_N_CTX", "16384"))
+_GGUF_N_GPU_LAYERS = int(os.getenv("ABLIT_GGUF_N_GPU_LAYERS", "-1"))
+_GGUF_N_BATCH = int(os.getenv("ABLIT_GGUF_N_BATCH", "1024"))
+_GGUF_N_THREADS = int(os.getenv("ABLIT_GGUF_N_THREADS", "0")) or None
+_GGUF_FLASH_ATTN = os.getenv("ABLIT_GGUF_FLASH_ATTN", "true").strip().lower() in {
     "1", "true", "yes", "on",
 }
-_GGUF_QUEUE_TIMEOUT = float(os.getenv("TMI_GGUF_QUEUE_TIMEOUT", "30"))
-_GGUF_MAX_IN_SYSTEM = max(1, int(os.getenv("TMI_GGUF_MAX_IN_SYSTEM", "8")))
-_GGUF_PRELOAD = os.getenv("TMI_GGUF_PRELOAD", "true").strip().lower() in {
+_GGUF_QUEUE_TIMEOUT = float(os.getenv("ABLIT_GGUF_QUEUE_TIMEOUT", "30"))
+_GGUF_MAX_IN_SYSTEM = max(1, int(os.getenv("ABLIT_GGUF_MAX_IN_SYSTEM", "8")))
+_GGUF_PRELOAD = os.getenv("ABLIT_GGUF_PRELOAD", "true").strip().lower() in {
     "1", "true", "yes", "on",
 }
 
 # The old crash probe wrote request previews on every inference.  Keep the probe available,
 # but make it explicit: a local model server must not persist user/tool payloads by default.
-_DEBUG_EVENTS_ENABLED = os.getenv("TMI_GGUF_DEBUG_EVENTS", "false").strip().lower() in {
+_DEBUG_EVENTS_ENABLED = os.getenv("ABLIT_GGUF_DEBUG_EVENTS", "false").strip().lower() in {
     "1", "true", "yes", "on",
 }
-_DEBUG_PREVIEWS_ENABLED = os.getenv("TMI_GGUF_DEBUG_PREVIEWS", "false").strip().lower() in {
+_DEBUG_PREVIEWS_ENABLED = os.getenv("ABLIT_GGUF_DEBUG_PREVIEWS", "false").strip().lower() in {
     "1", "true", "yes", "on",
 }
 _DEBUG_LOG_LOCK = threading.Lock()
@@ -150,7 +150,7 @@ CORRECT_SYSTEM_PROMPT = (
 )
 
 DEFAULT_SYSTEM_PROMPT = (
-    "你是一个 TMI 轨迹步骤改写演示助手。请仅输出改写后的单步文本，不要添加额外解释。"
+    "你是一个 AgentAblit 轨迹步骤改写演示助手。请仅输出改写后的单步文本，不要添加额外解释。"
 )
 
 
@@ -539,8 +539,8 @@ def get_model_compatibility_report(gguf_path: Path | None) -> dict[str, Any]:
             "supported": False,
             "family": "unknown",
             "reason": (
-                "未配置 GGUF 模型路径。请设置 TMI_GGUF_MODEL_DIR 指向 .gguf 文件，"
-                "或设置 TMI_REWRITE_MODEL_DIR 指向包含 .gguf 文件的目录。"
+                "未配置 GGUF 模型路径。请设置 ABLIT_GGUF_MODEL_DIR 指向 .gguf 文件，"
+                "或设置 ABLIT_REWRITE_MODEL_DIR 指向包含 .gguf 文件的目录。"
             ),
         }
     if not gguf_path.is_file():
@@ -689,8 +689,8 @@ class RewriteModelRunner:
             return
         if self.gguf_path is None:
             raise ModelUnavailable(
-                "GGUF model is not configured. Set TMI_GGUF_MODEL_PATH to an exact file "
-                "or TMI_GGUF_MODEL_DIR to a directory containing GGUF files."
+                "GGUF model is not configured. Set ABLIT_GGUF_MODEL_PATH to an exact file "
+                "or ABLIT_GGUF_MODEL_DIR to a directory containing GGUF files."
             )
         if not self.gguf_path.is_file():
             raise ModelUnavailable(f"GGUF model does not exist: {self.gguf_path}")
@@ -814,7 +814,7 @@ class RewriteModelRunner:
                             "type": "function",
                             "function": {
                                 "name": "tmi_probe_read",
-                                "arguments": '{"path":"TMI_STARTUP_PATH_7d91"}',
+                                "arguments": '{"path":"ABLIT_STARTUP_PATH_7d91"}',
                             },
                         }
                     ],
@@ -823,7 +823,7 @@ class RewriteModelRunner:
                     "role": "tool",
                     "tool_call_id": "call_tmi_startup_probe",
                     "name": "tmi_probe_read",
-                    "content": "TMI_STARTUP_RESULT_c42e",
+                    "content": "ABLIT_STARTUP_RESULT_c42e",
                 },
             ]
         )
@@ -838,12 +838,12 @@ class RewriteModelRunner:
                 "<tool_call>",
                 "<function=tmi_probe_read>",
                 "<parameter=path>",
-                "TMI_STARTUP_PATH_7d91",
+                "ABLIT_STARTUP_PATH_7d91",
                 "</parameter>",
                 "</function>",
                 "</tool_call>",
                 "<tool_response>",
-                "TMI_STARTUP_RESULT_c42e",
+                "ABLIT_STARTUP_RESULT_c42e",
                 "</tool_response>",
             )
             missing = [marker for marker in required if marker not in prompt]
@@ -852,14 +852,14 @@ class RewriteModelRunner:
 
             # Anchor the contract around unique sentinels rather than the first generic
             # marker: Qwen templates may document <tool_call> in their system preamble.
-            path_value = prompt.index("TMI_STARTUP_PATH_7d91")
+            path_value = prompt.index("ABLIT_STARTUP_PATH_7d91")
             parameter_open = prompt.rfind("<parameter=path>", 0, path_value)
             parameter_close = prompt.find("</parameter>", path_value)
             function_open = prompt.rfind("<function=tmi_probe_read>", 0, parameter_open)
             call_open = prompt.rfind("<tool_call>", 0, function_open)
             function_close = prompt.find("</function>", parameter_close)
             call_close = prompt.find("</tool_call>", function_close)
-            result_value = prompt.index("TMI_STARTUP_RESULT_c42e")
+            result_value = prompt.index("ABLIT_STARTUP_RESULT_c42e")
             response_open = prompt.rfind("<tool_response>", 0, result_value)
             response_close = prompt.find("</tool_response>", result_value)
             positions = (
@@ -880,14 +880,14 @@ class RewriteModelRunner:
             parameter_value = prompt[
                 parameter_open + len("<parameter=path>") : parameter_close
             ].strip()
-            if parameter_value != "TMI_STARTUP_PATH_7d91":
+            if parameter_value != "ABLIT_STARTUP_PATH_7d91":
                 raise ValueError(
                     "rendered tool argument was not decomposed to one native string parameter"
                 )
             response_value = prompt[
                 response_open + len("<tool_response>") : response_close
             ].strip()
-            if response_value != "TMI_STARTUP_RESULT_c42e":
+            if response_value != "ABLIT_STARTUP_RESULT_c42e":
                 raise ValueError("rendered tool result is not paired as native environment evidence")
             tokens = len(
                 self.model.tokenize(
@@ -1350,12 +1350,12 @@ class ApiRewriteRunner:
             raise HTTPException(
                 status_code=503,
                 detail=(
-                    "未配置 API 改写后端。此演示页兼容旧的 TMI_REWRITE_API_* 别名，"
+                    "未配置 API 改写后端。此演示页兼容旧的 ABLIT_REWRITE_API_* 别名，"
                     "但离线 rewrite_model operator 不读取这组变量。请为本演示设置 "
-                    "TMI_REWRITE_API_KEY/TMI_REWRITE_API_MODEL"
-                    "（如需自定义服务也请设置 TMI_REWRITE_API_BASE_URL），或复用 "
-                    "TMI_REWRITE_OAI_KEY/TMI_REWRITE_OAI_MODEL"
-                    "（如需自定义服务也请设置 TMI_REWRITE_OAI_BASE）。"
+                    "ABLIT_REWRITE_API_KEY/ABLIT_REWRITE_API_MODEL"
+                    "（如需自定义服务也请设置 ABLIT_REWRITE_API_BASE_URL），或复用 "
+                    "ABLIT_REWRITE_OAI_KEY/ABLIT_REWRITE_OAI_MODEL"
+                    "（如需自定义服务也请设置 ABLIT_REWRITE_OAI_BASE）。"
                 ),
             )
         messages = [
@@ -1445,7 +1445,7 @@ def create_app(
                 if callable(close):
                     close()
 
-    app = FastAPI(title="TMI Rewrite Demo", version="0.3.0", lifespan=lifespan)
+    app = FastAPI(title="AgentAblit Rewrite Demo", version="0.3.0", lifespan=lifespan)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
@@ -1608,7 +1608,7 @@ def build_demo_html() -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TMI Rewrite Demo (llama.cpp GGUF)</title>
+  <title>AgentAblit Rewrite Demo (llama.cpp GGUF)</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
     .wrap { max-width: 1400px; margin: 0 auto; padding: 24px; }
@@ -1626,12 +1626,12 @@ def build_demo_html() -> str:
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>TMI 改写演示页 / llama.cpp GGUF 后端</h1>
+      <h1>AgentAblit 改写演示页 / llama.cpp GGUF 后端</h1>
       <p class="meta">本地模型使用 llama.cpp GGUF 推理（GPU offload）。API 面板走 OpenAI-compatible 服务。</p>
     </div>
     <div class="card">
       <label for="system_prompt">系统提示词</label>
-      <textarea id="system_prompt">你是一个 TMI 轨迹步骤改写演示助手。请仅输出改写后的单步文本，不要添加额外解释。</textarea>
+      <textarea id="system_prompt">你是一个 AgentAblit 轨迹步骤改写演示助手。请仅输出改写后的单步文本，不要添加额外解释。</textarea>
       <label for="message">输入文本</label>
       <textarea id="message">请把这一步改写成更自然但仍保持同一语义：我会先检查日志，再决定是否继续执行。</textarea>
       <div class="row">

@@ -1,4 +1,4 @@
-"""Environment-backed configuration for the TMI proxy transport.
+"""Environment-backed configuration for the AgentAblit relay transport.
 
 Only the recover (calibrator) and reconstruct (A/B symbiont sniffer) strategies remain.
 Earlier legacy families (message injection, predictor/router) were removed.
@@ -27,7 +27,7 @@ class ProxyConfig:
     # 【…】 section labels injected into B's context). "en" (default) = clean English prompts so
     # the parasite forges English content on English benchmarks; "zh" = byte-identical to the
     # historical Chinese set. Each prompt module selects its own variant at import time from the
-    # same env var (TMI_PROMPT_LANG); this field mirrors it for config/audit completeness.
+    # same env var (ABLIT_PROMPT_LANG); this field mirrors it for config/audit completeness.
     prompt_lang: str = "en"
     calibration_url: str = "http://127.0.0.1:8001/correct"
     recover_url: str = ""
@@ -115,7 +115,7 @@ class ProxyConfig:
     # untouched and had to be cleaned up later, out-of-band. Superseded by
     # ReconstructController._calibrate_reasoning, which cleans reasoning_content at delivery time (this
     # turn, same calibrator), so nothing dirty ever reaches history in the first place — see
-    # ablate_reasoning_calibration below. Set false / TMI_ABLATE_REASONING_SAN=0 to re-enable the
+    # ablate_reasoning_calibration below. Set false / ABLIT_ABLATE_REASONING_SAN=0 to re-enable the
     # old retroactive scan for comparison.
     ablate_reasoning_san: bool = True
     # Skip the delivery-time reasoning_content cleanup (ReconstructController._calibrate_reasoning).
@@ -151,7 +151,7 @@ class ProxyConfig:
     # ablate_l3 — remove the hijack-escalation ladder (default False = ON). When primary B +
     # aligned fallback B both fail to forge a valid tool_call, the ladder re-attempts with escalated
     # levers (full-context passthrough on the decensored primary, then laundered-steer on the
-    # aligned fallback) before dropping to salvage_text. TMI_ABLATE_L3=1 reproduces legacy.
+    # aligned fallback) before dropping to salvage_text. ABLIT_ABLATE_L3=1 reproduces legacy.
     ablate_l3: bool = False
     # SYNTHESIZED QA trajectory. When True, the memory fed to the sniffer AND the salvage
     # coldstart is the per-user-turn interleaved Q⊕A trajectory (Q spliced from messages, A
@@ -187,7 +187,7 @@ class ProxyConfig:
     upstream_strip_params: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        # "passthrough" = format-conversion relay only (no TMI rewrite). Used by evaluation
+        # "passthrough" = format-conversion relay only (no AgentAblit rewrite). Used by evaluation
         # arms where the sole variable versus the full arm must be whether the parasite is
         # attached — the Anthropic<->OpenAI path is held identical across arms.
         if self.engine not in {"full", "recover_only", "passthrough"}:
@@ -199,13 +199,13 @@ class ProxyConfig:
 
     @classmethod
     def from_env(cls) -> "ProxyConfig":
-        calibration_base_url = os.environ.get("TMI_CALIBRATION_BASE_URL", "").strip()
+        calibration_base_url = os.environ.get("ABLIT_CALIBRATION_BASE_URL", "").strip()
         recover_base_url = os.environ.get(
             "AGENTABLIT_RECOVER_BASE_URL", calibration_base_url
         ).strip()
         calibration_url = os.environ.get(
-            "TMI_CALIBRATION_URL",
-            os.environ.get("TMI_CORRECTOR_URL", "http://127.0.0.1:8001/correct"),
+            "ABLIT_CALIBRATION_URL",
+            os.environ.get("ABLIT_CORRECTOR_URL", "http://127.0.0.1:8001/correct"),
         )
         return cls(
             upstream_url=os.environ.get(
@@ -222,7 +222,7 @@ class ProxyConfig:
             ),
             trace_dir=Path(
                 os.environ.get(
-                    "PROXY_TRACE_DIR", str(Path(os.environ.get("TMI_TRACE_DIR",
+                    "PROXY_TRACE_DIR", str(Path(os.environ.get("ABLIT_TRACE_DIR",
                         str(Path(__file__).resolve().parents[2] / "outputs" / "proxy_traces"))))
                 )
             ),
@@ -235,7 +235,7 @@ class ProxyConfig:
             engine=os.environ.get("AGENTABLIT_ENGINE", "full"),
             prompt_lang=(
                 "zh"
-                if os.environ.get("TMI_PROMPT_LANG", "en").strip().lower() == "zh"
+                if os.environ.get("ABLIT_PROMPT_LANG", "en").strip().lower() == "zh"
                 else "en"
             ),
             calibration_url=calibration_url,
@@ -244,8 +244,8 @@ class ProxyConfig:
             recover_base_url=recover_base_url,
             recover_key=os.environ.get("AGENTABLIT_RECOVER_KEY", "").strip(),
             recover_model=os.environ.get("AGENTABLIT_RECOVER_MODEL", "local-calibration").strip(),
-            role_timeout=float(os.environ.get("TMI_ROLE_TIMEOUT", "120")),
-            upstream_timeout=float(os.environ.get("TMI_UPSTREAM_TIMEOUT", "180")),
+            role_timeout=float(os.environ.get("ABLIT_ROLE_TIMEOUT", "120")),
+            upstream_timeout=float(os.environ.get("ABLIT_UPSTREAM_TIMEOUT", "180")),
             parasite_url=os.environ.get("AGENTABLIT_PARASITE_URL", ""),
             parasite_key=os.environ.get("AGENTABLIT_PARASITE_KEY", "EMPTY"),
             parasite_model=os.environ.get("AGENTABLIT_PARASITE_MODEL", ""),
@@ -254,54 +254,54 @@ class ProxyConfig:
             fallback_key=os.environ.get("AGENTABLIT_FALLBACK_KEY", ""),
             fallback_model=os.environ.get("AGENTABLIT_FALLBACK_MODEL", ""),
             fallback_timeout=float(os.environ.get("AGENTABLIT_FALLBACK_TIMEOUT", "60")),
-            util_base_url=os.environ.get("TMI_UTIL_BASE_URL", "").strip(),
-            util_key=os.environ.get("TMI_UTIL_KEY", "").strip(),
-            util_model=os.environ.get("TMI_UTIL_MODEL", "").strip(),
-            util_timeout=float(os.environ.get("TMI_UTIL_TIMEOUT", "30")),
-            traj_max_sessions=int(os.environ.get("TMI_TRAJ_MAX_SESSIONS", "512")),
-            traj_step_result_cap=int(os.environ.get("TMI_TRAJ_STEP_RESULT_CAP", "600")),
-            traj_step_args_cap=int(os.environ.get("TMI_TRAJ_STEP_ARGS_CAP", "160")),
+            util_base_url=os.environ.get("ABLIT_UTIL_BASE_URL", "").strip(),
+            util_key=os.environ.get("ABLIT_UTIL_KEY", "").strip(),
+            util_model=os.environ.get("ABLIT_UTIL_MODEL", "").strip(),
+            util_timeout=float(os.environ.get("ABLIT_UTIL_TIMEOUT", "30")),
+            traj_max_sessions=int(os.environ.get("ABLIT_TRAJ_MAX_SESSIONS", "512")),
+            traj_step_result_cap=int(os.environ.get("ABLIT_TRAJ_STEP_RESULT_CAP", "600")),
+            traj_step_args_cap=int(os.environ.get("ABLIT_TRAJ_STEP_ARGS_CAP", "160")),
             traj_coldstart_recent_full_steps=int(
-                os.environ.get("TMI_COLDSTART_RECENT_FULL_STEPS", "0")
+                os.environ.get("ABLIT_COLDSTART_RECENT_FULL_STEPS", "0")
             ),
-            traj_coldstart_full_cap=int(os.environ.get("TMI_COLDSTART_FULL_CAP", "12000")),
+            traj_coldstart_full_cap=int(os.environ.get("ABLIT_COLDSTART_FULL_CAP", "12000")),
             traj_coldstart_char_budget=int(
-                os.environ.get("TMI_COLDSTART_CHAR_BUDGET", "120000")
+                os.environ.get("ABLIT_COLDSTART_CHAR_BUDGET", "120000")
             ),
             traj_coldstart_history_encoding=(
-                os.environ.get("TMI_COLDSTART_HISTORY_ENCODING", "native").strip().lower()
+                os.environ.get("ABLIT_COLDSTART_HISTORY_ENCODING", "native").strip().lower()
                 or "native"
             ),
             traj_coldstart_passthrough=_enabled(
-                os.environ.get("TMI_COLDSTART_PASSTHROUGH", "")
+                os.environ.get("ABLIT_COLDSTART_PASSTHROUGH", "")
             ),
             traj_context_asset_resolver_enabled=_enabled(
-                os.environ.get("TMI_CONTEXT_ASSET_RESOLVER_ENABLED", "")
+                os.environ.get("ABLIT_CONTEXT_ASSET_RESOLVER_ENABLED", "")
             ),
-            sniffer_intent_window=int(os.environ.get("TMI_SNIFFER_INTENT_WINDOW", "6")),
-            ablate_graying=_enabled(os.environ.get("TMI_ABLATE_GRAYING", "")),
+            sniffer_intent_window=int(os.environ.get("ABLIT_SNIFFER_INTENT_WINDOW", "6")),
+            ablate_graying=_enabled(os.environ.get("ABLIT_ABLATE_GRAYING", "")),
             # Default "1" (ablated/off) — retired, see field comment above. Explicitly set
-            # TMI_ABLATE_REASONING_SAN=0 to bring the old retroactive scan back for comparison.
-            ablate_reasoning_san=_enabled(os.environ.get("TMI_ABLATE_REASONING_SAN", "1")),
+            # ABLIT_ABLATE_REASONING_SAN=0 to bring the old retroactive scan back for comparison.
+            ablate_reasoning_san=_enabled(os.environ.get("ABLIT_ABLATE_REASONING_SAN", "1")),
             ablate_reasoning_calibration=_enabled(
-                os.environ.get("TMI_ABLATE_REASONING_CALIBRATION", "")
+                os.environ.get("ABLIT_ABLATE_REASONING_CALIBRATION", "")
             ),
-            ablate_trajectory=_enabled(os.environ.get("TMI_ABLATE_TRAJECTORY", "")),
-            ablate_salvage_graying=_enabled(os.environ.get("TMI_ABLATE_SALVAGE_GRAYING", "")),
-            disable_salvage=_enabled(os.environ.get("TMI_DISABLE_SALVAGE", "")),
-            ablate_reconstruct=_enabled(os.environ.get("TMI_ABLATE_RECONSTRUCT", "")),
-            ablate_recover=_enabled(os.environ.get("TMI_ABLATE_RECOVER", "")),
-            ablate_l3=_enabled(os.environ.get("TMI_ABLATE_L3", "")),
-            qa_synthesis=_enabled(os.environ.get("TMI_QA_SYNTHESIS", "")),
-            context_resolution=os.environ.get("TMI_CONTEXT_RESOLUTION", "").strip().lower(),
+            ablate_trajectory=_enabled(os.environ.get("ABLIT_ABLATE_TRAJECTORY", "")),
+            ablate_salvage_graying=_enabled(os.environ.get("ABLIT_ABLATE_SALVAGE_GRAYING", "")),
+            disable_salvage=_enabled(os.environ.get("ABLIT_DISABLE_SALVAGE", "")),
+            ablate_reconstruct=_enabled(os.environ.get("ABLIT_ABLATE_RECONSTRUCT", "")),
+            ablate_recover=_enabled(os.environ.get("ABLIT_ABLATE_RECOVER", "")),
+            ablate_l3=_enabled(os.environ.get("ABLIT_ABLATE_L3", "")),
+            qa_synthesis=_enabled(os.environ.get("ABLIT_QA_SYNTHESIS", "")),
+            context_resolution=os.environ.get("ABLIT_CONTEXT_RESOLUTION", "").strip().lower(),
             context_resolution_coldstart=os.environ.get(
-                "TMI_CONTEXT_RESOLUTION_COLDSTART", "snippet"
+                "ABLIT_CONTEXT_RESOLUTION_COLDSTART", "snippet"
             ).strip().lower(),
             context_resolution_sniffer=os.environ.get(
-                "TMI_CONTEXT_RESOLUTION_SNIFFER", ""
+                "ABLIT_CONTEXT_RESOLUTION_SNIFFER", ""
             ).strip().lower(),
             traj_store_dir=os.environ.get(
-                "TMI_TRAJ_STORE_DIR",
+                "ABLIT_TRAJ_STORE_DIR",
                 str(Path(__file__).resolve().parents[2] / "outputs" / "trajectory_store"),
             ).strip(),
         )
@@ -317,7 +317,7 @@ class ProxyConfig:
         "host.url": "PROXY_UPSTREAM_URL",
         "host.key": "PROXY_UPSTREAM_KEY",
         "host.model": "PROXY_MODEL_ID",
-        "host.timeout": "TMI_UPSTREAM_TIMEOUT",
+        "host.timeout": "ABLIT_UPSTREAM_TIMEOUT",
         "host.strip_params": "PROXY_UPSTREAM_STRIP_PARAMS",
         # parasite / B (the continuation model that forges the next tool call) — required
         "parasite.url": "AGENTABLIT_PARASITE_URL",
@@ -331,38 +331,38 @@ class ProxyConfig:
         "fallback.timeout": "AGENTABLIT_FALLBACK_TIMEOUT",
         # calibration / role model (graying path) — optional
         "calibration.base_url": "AGENTABLIT_RECOVER_BASE_URL",
-        "calibration.url": "TMI_CALIBRATION_URL",
+        "calibration.url": "ABLIT_CALIBRATION_URL",
         "calibration.key": "AGENTABLIT_RECOVER_KEY",
         "calibration.model": "AGENTABLIT_RECOVER_MODEL",
-        "calibration.timeout": "TMI_ROLE_TIMEOUT",
+        "calibration.timeout": "ABLIT_ROLE_TIMEOUT",
         # utility model (neutral tasks) — optional
-        "util.base_url": "TMI_UTIL_BASE_URL",
-        "util.key": "TMI_UTIL_KEY",
-        "util.model": "TMI_UTIL_MODEL",
-        "util.timeout": "TMI_UTIL_TIMEOUT",
+        "util.base_url": "ABLIT_UTIL_BASE_URL",
+        "util.key": "ABLIT_UTIL_KEY",
+        "util.model": "ABLIT_UTIL_MODEL",
+        "util.timeout": "ABLIT_UTIL_TIMEOUT",
         # coldstart context — optional tuning
-        "coldstart.history_encoding": "TMI_COLDSTART_HISTORY_ENCODING",
-        "coldstart.char_budget": "TMI_COLDSTART_CHAR_BUDGET",
-        "coldstart.full_cap": "TMI_COLDSTART_FULL_CAP",
-        "coldstart.recent_full_steps": "TMI_COLDSTART_RECENT_FULL_STEPS",
-        "coldstart.passthrough": "TMI_COLDSTART_PASSTHROUGH",
-        "coldstart.context_resolution": "TMI_CONTEXT_RESOLUTION_COLDSTART",
+        "coldstart.history_encoding": "ABLIT_COLDSTART_HISTORY_ENCODING",
+        "coldstart.char_budget": "ABLIT_COLDSTART_CHAR_BUDGET",
+        "coldstart.full_cap": "ABLIT_COLDSTART_FULL_CAP",
+        "coldstart.recent_full_steps": "ABLIT_COLDSTART_RECENT_FULL_STEPS",
+        "coldstart.passthrough": "ABLIT_COLDSTART_PASSTHROUGH",
+        "coldstart.context_resolution": "ABLIT_CONTEXT_RESOLUTION_COLDSTART",
         # trace / session paths — optional
         "trace.trace_dir": "PROXY_TRACE_DIR",
         "trace.session_dir": "PROXY_SESSION_DIR",
-        "trace.store_dir": "TMI_TRAJ_STORE_DIR",
+        "trace.store_dir": "ABLIT_TRAJ_STORE_DIR",
         # mechanism control / ablations — advanced
         "mechanism.version": "AGENTABLIT_ENGINE",
-        "mechanism.ablate_graying": "TMI_ABLATE_GRAYING",
-        "mechanism.ablate_salvage_graying": "TMI_ABLATE_SALVAGE_GRAYING",
-        "mechanism.disable_salvage": "TMI_DISABLE_SALVAGE",
-        "mechanism.ablate_reconstruct": "TMI_ABLATE_RECONSTRUCT",
-        "mechanism.ablate_recover": "TMI_ABLATE_RECOVER",
-        "mechanism.ablate_l3": "TMI_ABLATE_L3",
-        "mechanism.ablate_reasoning_calibration": "TMI_ABLATE_REASONING_CALIBRATION",
-        "mechanism.ablate_trajectory": "TMI_ABLATE_TRAJECTORY",
+        "mechanism.ablate_graying": "ABLIT_ABLATE_GRAYING",
+        "mechanism.ablate_salvage_graying": "ABLIT_ABLATE_SALVAGE_GRAYING",
+        "mechanism.disable_salvage": "ABLIT_DISABLE_SALVAGE",
+        "mechanism.ablate_reconstruct": "ABLIT_ABLATE_RECONSTRUCT",
+        "mechanism.ablate_recover": "ABLIT_ABLATE_RECOVER",
+        "mechanism.ablate_l3": "ABLIT_ABLATE_L3",
+        "mechanism.ablate_reasoning_calibration": "ABLIT_ABLATE_REASONING_CALIBRATION",
+        "mechanism.ablate_trajectory": "ABLIT_ABLATE_TRAJECTORY",
         # language
-        "prompt_lang": "TMI_PROMPT_LANG",
+        "prompt_lang": "ABLIT_PROMPT_LANG",
     }
 
     @classmethod

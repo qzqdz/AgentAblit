@@ -45,14 +45,14 @@ _STEP_OLD_CAP = 120
 # Overall char budget for B's coldstart progress context. Balanced for speed: big enough that
 # B sees the whole (short) agentic trajectory it must continue, small enough that the 9B B
 # stays fast (the old 16K starved B; a 120K "give it everything" made B calls crawl). Env-
-# tunable via configure() — raise TMI_COLDSTART_CHAR_BUDGET / _FULL_CAP for fidelity over speed.
+# tunable via configure() — raise ABLIT_COLDSTART_CHAR_BUDGET / _FULL_CAP for fidelity over speed.
 _PROGRESS_CHAR_BUDGET = 24000
 
 # How many of the MOST-RECENT steps (owner-units) of the current stalled segment are passed to
 # B at FULL fidelity (`_STEP_FULL_CAP`) vs the older-step snippet cap. `<= 0` means ALL steps
 # full (the default): AgentHarm-style trajectories are short and B can hold them whole, so
 # snippet-clipping older steps just starves B and drives repeat-the-same-call loops. Set from
-# config via configure() (TMI_COLDSTART_RECENT_FULL_STEPS / _FULL_CAP / _CHAR_BUDGET).
+# config via configure() (ABLIT_COLDSTART_RECENT_FULL_STEPS / _FULL_CAP / _CHAR_BUDGET).
 _RECENT_FULL_STEPS = 0
 _STEP_FULL_CAP = 3000
 
@@ -64,21 +64,21 @@ _HISTORY_ENCODING = "native"
 
 # Passthrough budget guard (escalation rung 1 / any passthrough coldstart). Passthrough raw-copies the
 # FULL request into B — great for structure fidelity on the local nvfp4 B (MAX_CONTEXT=262144),
-# but a Win/gguf B defaults to TMI_GGUF_N_CTX=16384 and, for an AGENTIC request (tools present,
+# but a Win/gguf B defaults to ABLIT_GGUF_N_CTX=16384 and, for an AGENTIC request (tools present,
 # which every coldstart is), the server RAISES ContextLengthExceeded (HTTP 500) rather than
 # truncating — so ~half of real cases (measured: 15/32 salvage_text cases exceed 16K, some at
 # 200K-400K tok) would 500 and waste a giant round-trip. When the passthrough body would exceed
 # the effective B context, fall through to the budget-protected coldstart_v2 path instead (which
 # trims structure-aware, keeps action-critical units + steer, never over-sends). Char budget is
-# derived from the server's token context via TMI_B_CONTEXT_TOKENS (default 16384, matching the
+# derived from the server's token context via ABLIT_B_CONTEXT_TOKENS (default 16384, matching the
 # gguf default), minus an output/template reserve, at a CONSERVATIVE 2 chars/token: CJK tokenizes
 # at ~1-2 tokens/char, so a CJK-heavy body counted at 3 chars/tok could still exceed the window and
 # 500 the gguf B — the exact outcome this guard prevents. 2 chars/tok under-fills for English/code
 # (safe: coldstart_v2 would just get invoked slightly earlier) but never OVER-fills for CJK. Tune
-# via TMI_PASSTHROUGH_CHARS_PER_TOKEN if a real tokenizer estimate is wired for the served B.
-_B_CONTEXT_TOKENS = int(os.environ.get("TMI_B_CONTEXT_TOKENS", "16384"))
+# via ABLIT_PASSTHROUGH_CHARS_PER_TOKEN if a real tokenizer estimate is wired for the served B.
+_B_CONTEXT_TOKENS = int(os.environ.get("ABLIT_B_CONTEXT_TOKENS", "16384"))
 _B_OUTPUT_RESERVE_TOKENS = 2048
-_PASSTHROUGH_CHARS_PER_TOKEN = int(os.environ.get("TMI_PASSTHROUGH_CHARS_PER_TOKEN", "2"))
+_PASSTHROUGH_CHARS_PER_TOKEN = int(os.environ.get("ABLIT_PASSTHROUGH_CHARS_PER_TOKEN", "2"))
 _PASSTHROUGH_CHAR_BUDGET = max(
     8000, (_B_CONTEXT_TOKENS - _B_OUTPUT_RESERVE_TOKENS) * _PASSTHROUGH_CHARS_PER_TOKEN
 )

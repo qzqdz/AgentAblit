@@ -7,7 +7,7 @@ functional layers of one REGI system, dispatched by the engine selector
 - `recover` — reachability sensing + Recover text rewriting (sniffer / calibration).
 - `reconstruct` — REGI orchestrator + Reconstruct engine + state/context augmentation
   (observer, trajectory, skills); util/trajectory capabilities are config-driven
-  (`TMI_UTIL_*` / `TMI_TRAJ_*`), never implied by the selector name.
+  (`ABLIT_UTIL_*` / `ABLIT_TRAJ_*`), never implied by the selector name.
 
 They depend only on `shared`, never on each other or on `proxy` / `dashboard`.
 """

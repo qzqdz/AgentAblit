@@ -1,104 +1,110 @@
 # calibration_model_server
 
-REGI 的角色模型 server（B / 校准模型的可部署后端）：recover sensing 走 `/correct`，
-Reconstruct / Recover 走 `/v1/chat/completions`（B），两者都可复用同一个部署（本机 Ubuntu 上
-8009 的 `qwen3.5-9b` NVFP4 同时承担这两个角色）。**两种部署方法,同一套 OpenAI 兼容接口**,
-按硬件选一个跑即可。两者都暴露：`/health`、`/v1/models`、`/v1/chat/completions`、`/correct`。
+Deployable backends for the AgentAblit role model (B / calibration model). Two serving methods,
+one OpenAI-compatible interface — pick one based on your hardware.
 
-| 文件 | 后端 | 场景 | 上下文 |
+The recover sensing path uses `/correct`; the reconstruct/recover path uses `/v1/chat/completions`.
+Both paths can share a single deployment (the local 9B NVFP4 on port 8009 handles both roles).
+
+| File | Backend | Scenario | Context window |
 | --- | --- | --- | --- |
-| `gguf_server.py` | GGUF / llama.cpp | PC（无 GPU 训练栈） | 16K 默认（可配置） |
-| `nvfp4_server.py` | transformers / NVFP4 | GPU 服务器（Blackwell） | 大（~262144，裁剪天然 no-op） |
+| `gguf_server.py` | GGUF / llama.cpp | Desktop PC (no GPU training stack) | 16K default (configurable) |
+| `nvfp4_server.py` | transformers / NVFP4 | GPU server (Blackwell) | Large (~262144, truncation is a no-op) |
 
-TMI proxy 通过 `AGENTABLIT_RECOVER_BASE_URL`（→ `/v1/chat/completions`）或 `calibration_url`（→ `/correct`）
-连这个 server,两个文件对 proxy 完全可互换。
+The AgentAblit relay connects via `AGENTABLIT_RECOVER_BASE_URL` (→ `/v1/chat/completions`) or
+`calibration_url` (→ `/correct`). The two files are fully interchangeable from the proxy's perspective.
 
-> GGUF 部署上下文明显小于 NVFP4（16K/32K vs ~262144）。如果本地这台 B 塞不下或跑不动某些
-> 纯读取/总结/判断类的活（技能目录、长轨迹摘要），可以选配一个云端 `util` 模型顶上去——
-> 它**不是要额外起的服务**，只是三五个环境变量（`TMI_UTIL_*`），不需要本地硬件/量化。
-> 详见根目录 `README.md` 里的 `TMI_UTIL_*` 说明。
+> **Note:** GGUF has a significantly smaller context window than NVFP4 (16K/32K vs ~262144).
+> If the local B model can't handle certain tasks (skill catalogs, long trajectory summaries),
+> you can optionally configure a cloud `util` model — just a few env vars (`ABLIT_UTIL_*`),
+> no local hardware needed. See the root `README.md` for details.
 
 ---
 
-## 方法一：Windows GGUF B server
+## Method 1: Windows GGUF B Server
 
-推荐直接使用：
+Recommended for direct use:
 
-~~~text
+```text
 E:\model\gguf\calibration-model-v1.5.1-q4_k_m-no-mtp.gguf
-~~~
+```
 
-它已经是 Q4_K_M（约 5.24 GiB），无需再次量化。GGUF 内嵌 Qwen3.5 native tool
-chat template；不要强制 functionary/hermes 等其他模板。
+Already Q4_K_M (~5.24 GiB), no re-quantization needed. The GGUF embeds Qwen3.5's native tool
+chat template — do not force functionary/hermes or other templates.
 
-一键启动：
+One-click launch:
 
-~~~bat
+```bat
 launch\9b.bat
-~~~
+```
 
-默认使用 D:\tools\Anaconda\envs\webagent\python.exe（可用
-TMI_GGUF_PYTHON 覆盖）、端口 8011、16K context、全层 CUDA offload。8 GiB
-显存先从 16K 开始，稳定后再提高 TMI_GGUF_N_CTX。
+Defaults: `D:\tools\Anaconda\envs\webagent\python.exe` (override with `ABLIT_GGUF_PYTHON`),
+port 8011, 16K context, full-layer CUDA offload. Start with 16K on 8 GiB VRAM, then increase
+`ABLIT_GGUF_N_CTX` once stable.
 
-关键环境变量：
+Key environment variables:
 
-- TMI_GGUF_MODEL_PATH：精确 GGUF 文件，优先级最高。
-- TMI_GGUF_MODEL_DIR：只在未指定精确文件时扫描目录。
-- TMI_GGUF_N_CTX、TMI_GGUF_N_GPU_LAYERS、TMI_GGUF_N_BATCH、
-  TMI_GGUF_N_THREADS、TMI_GGUF_FLASH_ATTN。
-- TMI_GGUF_QUEUE_TIMEOUT、TMI_GGUF_MAX_IN_SYSTEM：限制单 GPU 等待时间和排队请求数。
-- Proxy：AGENTABLIT_PARASITE_URL=http://127.0.0.1:8011/v1/chat/completions。
+- `ABLIT_GGUF_MODEL_PATH` — exact GGUF file, highest priority
+- `ABLIT_GGUF_MODEL_DIR` — scan directory (only when exact file not specified)
+- `ABLIT_GGUF_N_CTX`, `ABLIT_GGUF_N_GPU_LAYERS`, `ABLIT_GGUF_N_BATCH`,
+  `ABLIT_GGUF_N_THREADS`, `ABLIT_GGUF_FLASH_ATTN`
+- `ABLIT_GGUF_QUEUE_TIMEOUT`, `ABLIT_GGUF_MAX_IN_SYSTEM` — per-GPU wait time and queue limits
+- Proxy: `AGENTABLIT_PARASITE_URL=http://127.0.0.1:8011/v1/chat/completions`
 
-Windows server 接收 OpenAI tools/tool_choice/parallel_tool_calls，保留历史
-assistant.tool_calls + role=tool + tool_call_id。Qwen XML 输出会在 API 边界转换成
-标准 message.tool_calls，参数按 JSON Schema 保留类型。agentic 请求使用 GGUF 的真实
-Jinja 模板计数，并至少预留 256 个输出 token；上下文超限返回 HTTP 413，不会静默裁剪
-action/result 图。`parallel_tool_calls=false`、`tool_choice=none|required|指定函数` 都会在
-输出边界确定性校验，不满足时不会把动作交给 proxy。
+The Windows server accepts OpenAI `tools`/`tool_choice`/`parallel_tool_calls`, preserving
+`assistant.tool_calls` + `role=tool` + `tool_call_id` in history. Qwen XML output is converted
+to standard `message.tool_calls` at the API boundary, with arguments typed per JSON Schema.
+Agentic requests use GGUF's real Jinja template counting with at least 256 output tokens reserved;
+context overflow returns HTTP 413 (never silently truncates the action/result graph).
+`parallel_tool_calls=false` and `tool_choice=none|required|<function>` are deterministically
+verified at the output boundary.
 
-两个后端的 `/health` 都公开 `tool_output_contract=qwen35-xml-schema-typed-args.2`。
-该契约覆盖 schema-typed JSON、`True/False/None` lexical aliases、numeric-looking string、
-quoted JSON string、组合 schema/本地 `$ref`、typed `additionalProperties` 和 string 边界空白保真。
+Both backends expose `tool_output_contract=qwen35-xml-schema-typed-args.2` via `/health`.
+This contract covers schema-typed JSON, `True/False/None` lexical aliases, numeric-looking strings,
+quoted JSON strings, composite schemas/local `$ref`, typed `additionalProperties`, and string
+boundary whitespace fidelity.
 
-错误响应使用 OpenAI `error` 对象：非法输入 400、上下文超限 413、无效模型动作 502、
-模型不可用 503、队列满/等待超时 429。`/health` 的 `ready=true` 只有在模型已加载、
-Qwen tool template 已验证且真实 Jinja 计数器可用时才成立。
+Error responses use the OpenAI `error` object: 400 (invalid input), 413 (context overflow),
+502 (invalid model action), 503 (model unavailable), 429 (queue full / wait timeout).
+`/health` reports `ready=true` only when the model is loaded, the Qwen tool template is verified,
+and the real Jinja counter is available.
 
-启动后运行强制 live gate：
+After starting, run the mandatory live gate:
 
-~~~powershell
+```powershell
 python scripts\smoke_win_gguf_b.py
-~~~
+```
 
-该脚本是 server/template/codec 的强制工具 live gate：包括 schema 类型、原生
-`tool → assistant` 续接、非法历史和超限失败。B 自主选择下一动作的准确率仍由 Hybrid V2
-§9 next-action harness 单独评测，不能用这个 smoke 代替。
+This script is the mandatory tool live gate for server/template/codec: covers schema types,
+native `tool → assistant` continuation, illegal history, and overflow failures. B's autonomous
+next-action accuracy is evaluated separately by the Hybrid V2 §9 next-action harness.
 
 ---
 
-## 方法二：NVFP4 / transformers（GPU 服务器）
+## Method 2: NVFP4 / Transformers (GPU Server)
 
-`nvfp4_server.py` 是 TMI 的唯一 NVFP4 服务实现，包含真流式、thinking、tool_calls 和
-`/correct` 端点。`fp4_linear.py` 与共享 tool-output codec 都随仓库维护，所以仓库内部署自包含。
+`nvfp4_server.py` is the sole NVFP4 serving implementation, with true streaming, thinking,
+tool_calls, and `/correct` endpoint. `fp4_linear.py` and the shared tool-output codec are
+maintained with the repo, so deployment is self-contained.
 
 ```bash
-export PATH=/usr/local/cuda/bin:$PATH       # flashinfer JIT 需要 nvcc（仅 NVFP4 需要）
+export PATH=/usr/local/cuda/bin:$PATH       # flashinfer JIT needs nvcc (NVFP4 only)
 export CORRECT_MODEL_PATH=/path/to/checkpoint
-export CORRECT_QUANT=fi-nvfp4               # 或 bf16（不依赖 flashinfer）
+export CORRECT_QUANT=fi-nvfp4               # or bf16 (no flashinfer needed)
 python -m uvicorn calibration_model_server.nvfp4_server:app --host 0.0.0.0 --port 8011
 ```
 
-关键 env：`CORRECT_MODEL_PATH`（HF 目录）、`CORRECT_QUANT`（`fi-nvfp4` | `fi-nvfp4-full` | `bf16`）、
-`SERVED_MODEL_NAME`、`MAX_CONTEXT`。
+Key env vars: `CORRECT_MODEL_PATH` (HF directory), `CORRECT_QUANT` (`fi-nvfp4` | `fi-nvfp4-full` | `bf16`),
+`SERVED_MODEL_NAME`, `MAX_CONTEXT`.
 
-- **bf16**：无需 flashinfer,任意 CUDA 机器可跑。
-- **NVFP4**：需 flashinfer + Blackwell（sm_120+）;`fp4_linear.py` 已随仓库,无外部依赖。
+- **bf16**: No flashinfer needed, runs on any CUDA machine.
+- **NVFP4**: Requires flashinfer + Blackwell (sm_120+); `fp4_linear.py` ships with the repo.
 
 ---
 
-## 维护约束
+## Maintenance Constraints
 
-NVFP4 服务实现只维护 `calibration_model_server/nvfp4_server.py`；schema-aware 参数恢复只维护
-`src/shared/tool_call_codec.py`，并由 NVFP4/GGUF 两个后端共同调用。启动脚本、测试和文档必须
-引用这两个规范模块，避免部署代码、后端 codec 与受测代码漂移。
+The NVFP4 serving implementation is maintained only in `calibration_model_server/nvfp4_server.py`.
+Schema-aware argument recovery is maintained only in `src/shared/tool_call_codec.py`, called by
+both NVFP4 and GGUF backends. Launch scripts, tests, and documentation must reference these two
+canonical modules to prevent drift between deployment code, backend codec, and tested code.
