@@ -50,6 +50,16 @@ Measured on real recorded multi-step trajectories: **97%+ tool-continuation rate
 tool-using turns, **80% hard-subset rescue** when the host fully stalls. Full methodology in
 [`docs/PROPOSAL.md`](docs/PROPOSAL.md).
 
+## Why not just…
+
+| Approach | Why it doesn't work | AgentAblit's edge |
+| :--- | :--- | :--- |
+| **Bigger model** | Larger aligned models over-refuse *more*, not less. Scaling up doesn't fix the alignment reflex. | Abliteration removes the refusal direction at the model layer — a 9B that never stalls beats a 70B that does. |
+| **Prompt engineering** | System-prompt tricks are brittle: one phrasing works for one model version, breaks on the next. | The control layer is deterministic and model-agnostic. Willingness comes from the model, not the prompt. |
+| **LangChain retry / AutoGPT recovery** | Retries re-send the same prompt to the same model — if it refused once, it will refuse again. | AgentAblit rewrites the framing (recover) or switches to an abliterated model (construct). The retry is not the same. |
+| **Just catch tool-call errors** | Schema validation catches malformed calls but doesn't help when the model emits prose instead of a tool call at all. | The L9 gate validates *and* the reconstruct tier forges a new tool call when the host produces none. |
+| **Safety through refusal** | Mid-trajectory refusal on benign sub-steps is a *reliability* bug, not a safety feature. An agent that can't complete a 15-step task is not safe — it's broken. | AgentAblit distinguishes task-level safety (preserved) from mid-trajectory over-refusal (eliminated). |
+
 ## Quick Architecture
 
 ```
@@ -130,6 +140,35 @@ ever-more-elaborate prompting. See [`docs/PROPOSAL.md`](docs/PROPOSAL.md) for th
 
 **Model:** [`qzqdz/agent-abliterated-9b-lora`](https://huggingface.co/qzqdz/agent-abliterated-9b-lora) —
 a 9B LoRA agent model on an abliterated base. See [`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md) for the release plan.
+
+## FAQ
+
+**Q: Does this make the model less safe?**
+Abliteration removes the *refusal direction*, which means the model won't spontaneously refuse benign
+mid-trajectory sub-steps. It does not remove the model's understanding of what harmful content is.
+The control layer adds explicit safety boundaries (see `SECURITY.md`). Think of it like disabling
+a car's traction control on a racetrack — the driver still knows how to drive safely, but the
+system won't cut power mid-corner.
+
+**Q: Can I use this with any model?**
+Yes — the relay is OpenAI-compatible on both ends. The *host* model (Model A) can be any
+OpenAI-compatible API. The *parasite/B* model should be an agent-abliterated model for best results,
+but any OpenAI-compatible endpoint works (the reconstruct tier will just have higher refusal rates).
+
+**Q: What's the latency overhead?**
+The relay adds negligible overhead for the common case (Forward — ~55% of turns, just a passthrough).
+When reconstruct fires, the local 9B is **median 3.2s** — faster than a cloud fallback on long
+trajectory prompts (6.2s).
+
+**Q: Do I need a GPU?**
+Not for the relay itself (it's a FastAPI proxy). The parasite/B model needs a serving backend — you
+can use a local GPU (`calibration_model_server/`), or point at any cloud API. A 9B model fits in
+8 GiB VRAM at 16K context.
+
+**Q: How is this different from just using `tool_choice: required`?**
+`tool_choice: required` forces the model to emit *a* tool call, but it doesn't guarantee the call
+is valid, non-redundant, or makes progress. AgentAblit's L9 gate validates against the action ledger,
+and the reconstruct tier has access to the full trajectory context to make an informed next action.
 
 ## Status
 
