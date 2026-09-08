@@ -1,4 +1,4 @@
-# AgentAblit — Open-Source Proposal
+# AgentAblit — Technical Deep Dive
 
 > **AgentAblit** — a trajectory-level agent-control algorithm (and security-research artifact,
 > published like PAIR / GPTFuzz) that keeps an LLM agent's action chain alive when the underlying
@@ -8,12 +8,12 @@
 > reconstruct → validate), with the complete mechanism — classifier, stance-recovery, salvage-steer,
 > and L3 escalation — shipped for reproducibility. For research and authorized use only.
 >
-> - **Project (GitHub):** `AgentAblit`
-> - **Model (HF):** `qzqdz/agent-abliterated-9b-lora`
+> - **Project (GitHub):** [`qzqdz/AgentAblit`](https://github.com/qzqdz/AgentAblit)
+> - **Model (HF):** [`qzqdz/agent-abliterated-9b-lora`](https://huggingface.co/qzqdz/agent-abliterated-9b-lora) *(planned)*
 
-Status: **proposal / spin-out plan.** This document is the blueprint for a NEW, separate
-open-source repository extracted from an internal research prototype. It is not itself the
-public repo.
+This document provides the full technical narrative: the problem space, the two-layer approach,
+what ships in the open-source release, quantitative evaluation results, and the safety boundary.
+For a quick start, see the [README](../README.md).
 
 ---
 
@@ -129,8 +129,7 @@ numbers reframed as *trajectory continuation*, never harmful-task success):
 - **Latency:** the local 9B reconstruct is a **median 3.2s** and, counter-intuitively, *faster*
   than a cloud fallback on long trajectory prompts (6.2s) — so local-first is the right default.
 
-(Full methodology carries over from the internal `docs/L3_HIJACK_ESCALATION_VALIDATION.md`,
-re-titled and stripped of attack framing.)
+(Full methodology and ablation details are documented in the test suite and trace outputs.)
 
 ## 5. Safety boundary (dual-use security research, stated up front)
 
@@ -147,34 +146,69 @@ complete algorithm, for reproduction and defense research. `SECURITY.md` states 
   datasets, and any real-target payloads. The mechanism (including the stance-recovery and
   escalation prompts) is part of the published algorithm.
 
-## 6. Repo shape (proposed)
+## 6. Repo structure
 
 ```
 AgentAblit/
-├── LICENSE                      # Apache-2.0 (permissive, patent grant) — NEW, required
-├── README.md                    # §1-5 above, defensive/tooling positioning
-├── SECURITY.md                  # authorized-use, dual-use disclosure, report channel
-├── CONTRIBUTING.md              # open to external PRs (drop the solo-dev no-PR rule)
-├── pyproject.toml               # package: agentablit; fastapi/uvicorn/httpx only
-├── src/agentablit/
-│   ├── proxy/                   # OpenAI-compatible relay (transport, decoupled)
-│   ├── control/                 # sense / forward / repair / reconstruct + L9 gate
-│   ├── ledger/                  # action ledger + checkpoint (reusable primitive)
-│   ├── serving/                 # local model servers (NVFP4 / GGUF)
-│   └── dashboard/               # trace audit UI
-├── tests/                       # the neutral suite
+├── LICENSE                          # Apache-2.0
+├── README.md                        # Overview, quickstart, architecture
+├── SECURITY.md                      # Authorized-use boundary, dual-use disclosure
+├── CONTRIBUTING.md                  # How to contribute
+├── config.example.yaml              # Full grouped config schema
+├── requirements.txt                 # Python dependencies
+├── src/
+│   ├── proxy/                       # OpenAI-compatible relay
+│   │   ├── message_forward.py       # Main relay (1940 lines, FastAPI + httpx)
+│   │   ├── config.py                # Env-backed configuration
+│   │   ├── session_store.py         # Session state management
+│   │   ├── session_snapshot.py      # Trajectory snapshot export
+│   │   ├── trace.py                 # JSONL trace sink
+│   │   └── anthropic_compat.py      # Anthropic ↔ OpenAI format conversion
+│   ├── strategies/
+│   │   ├── recover/                 # Host-output recovery (graying path)
+│   │   │   ├── control.py           # RecoverController
+│   │   │   ├── calibrator.py        # Will classifier
+│   │   │   ├── summarizer.py        # Host-output summarizer
+│   │   │   ├── salvage_steer.py     # Steer synthesis for reconstruct
+│   │   │   └── reasoning_sanitizer.py
+│   │   └── reconstruct/             # Cold-start continuation (parasite path)
+│   │       ├── control.py           # ReconstructController
+│   │       ├── coldstart_v2.py      # Context assembly for B
+│   │       ├── ledger.py            # Immutable action ledger
+│   │       ├── candidate.py         # Tool-call validation (L9)
+│   │       ├── value_compress.py    # Value-preserving compression
+│   │       ├── trajectory.py        # Trajectory recording
+│   │       ├── observer_context.py  # Context rendering modes
+│   │       ├── skills_cache.py      # Skills registry
+│   │       └── swapper.py           # ABSwapper (A→B model switching)
+│   ├── shared/                      # Cross-cutting utilities
+│   │   ├── model_client.py          # OpenAI-compatible HTTP client
+│   │   ├── messages.py              # Message extraction helpers
+│   │   ├── tool_call_codec.py       # Tool-call serialization
+│   │   ├── regi.py                  # Execution selector registry
+│   │   ├── calibration_server.py    # Local model server (GGUF + NVFP4)
+│   │   └── result_logger.py         # Structured result logging
+│   ├── panel/                       # Config panel (web UI)
+│   └── dashboard/                   # Trace/audit dashboard
+├── calibration_model_server/        # Standalone model servers
+│   ├── gguf_server.py               # llama.cpp GGUF backend
+│   ├── nvfp4_server.py              # Transformers + NVFP4 backend
+│   └── fp4_linear.py                # FP4 quantization primitives
+├── tests/                           # Test suite
 ├── docs/
-│   ├── CONTINUATION_BENCHMARK.md  # §4 numbers, defensive methodology
-│   └── MODEL_CARD.md              # → HF model card (see HF_RELEASE_PLAN.md)
-└── examples/                    # quickstart: point your agent at the proxy
+│   ├── PROPOSAL.md                  # This document
+│   └── HF_RELEASE_PLAN.md          # HuggingFace model release plan
+└── examples/                        # Integration examples
 ```
 
-## 7. Deliverables & sequencing
+## 7. Roadmap
 
-1. **This proposal** (done) — narrative + boundary + shape.
-2. **HF release plan** (`HF_RELEASE_PLAN.md`) — full-weights vs LoRA-only, model card, steps.
-3. **Extraction** (a follow-up work item, not this session): new repo, license, rename
-   operations, decouple proxy from strategy imports, port the neutral test suite, strip creds.
-
-The extraction is a real refactor (the盘点 found the proxy currently imports strategy modules),
-so it is scoped as its own task rather than a copy-paste — flagged honestly here.
+- ✅ **Core relay** — OpenAI + Anthropic-compatible proxy with full control law
+- ✅ **Recover & reconstruct controllers** — complete sense → forward → recover → reconstruct → validate pipeline
+- ✅ **Action ledger + L9 validation** — tool-call integrity / anti-loop primitives
+- ✅ **Config panel + YAML config** — human and agent configure through the same file
+- ✅ **Local model servers** — Transformers+NVFP4, llama.cpp GGUF, OpenAI-compatible
+- ✅ **Trace/audit dashboard** — JSONL trace viewer with session replay
+- 🔄 **Test suite expansion** — porting from internal suite, adding CI
+- 🔄 **HuggingFace model release** — LoRA adapter upload (see `HF_RELEASE_PLAN.md`)
+- 📋 **Examples & quickstart guides** — integration demos for popular frameworks

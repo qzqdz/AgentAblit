@@ -1,4 +1,4 @@
-"""Live dashboard for TMI proxy JSONL traces."""
+"""Live dashboard for AgentAblit relay JSONL traces."""
 from __future__ import annotations
 
 import hashlib
@@ -30,8 +30,8 @@ from shared.regi import result_metadata
 from strategies.reconstruct.trajectory import content_fingerprint
 
 TRACE_DIR = Path(
-    os.environ.get("TMI_DASHBOARD_TRACE_DIR")
-    or os.environ.get("TMI_PROXY_TRACE_DIR")
+    os.environ.get("ABLIT_DASHBOARD_TRACE_DIR")
+    or os.environ.get("ABLIT_PROXY_TRACE_DIR")
     # Default must match the proxy's write default (ProxyConfig.trace_dir =
     # outputs/proxy_traces) so the dashboard reads what the proxy writes without
     # needing any env override.
@@ -40,17 +40,17 @@ TRACE_DIR = Path(
 SESSION_DIR = Path(
     os.environ.get("PROXY_SESSION_DIR", str(ROOT / "outputs" / "sessions"))
 )
-# Persisted trajectory store (must match the proxy's TMI_TRAJ_STORE_DIR so the
+# Persisted trajectory store (must match the proxy's ABLIT_TRAJ_STORE_DIR so the
 # dashboard reads the same anchors the proxy writes).
 TRAJ_STORE_DIR = Path(
-    os.environ.get("TMI_TRAJ_STORE_DIR", str(ROOT / "outputs" / "trajectory_store"))
+    os.environ.get("ABLIT_TRAJ_STORE_DIR", str(ROOT / "outputs" / "trajectory_store"))
 )
-MAX_PREVIEW = int(os.environ.get("TMI_DASHBOARD_PREVIEW_CHARS", "600"))
+MAX_PREVIEW = int(os.environ.get("ABLIT_DASHBOARD_PREVIEW_CHARS", "600"))
 
 # ---------------------------------------------------------------------------
 # Cache infrastructure
 # ---------------------------------------------------------------------------
-_CACHE_DIR = Path(os.environ.get("TMI_DASHBOARD_CACHE_DIR", str(ROOT / "outputs" / ".dashboard_cache")))
+_CACHE_DIR = Path(os.environ.get("ABLIT_DASHBOARD_CACHE_DIR", str(ROOT / "outputs" / ".dashboard_cache")))
 _SUMMARIZE_CACHE_FILE = _CACHE_DIR / "summarize.json"
 _CLUSTER_CACHE_FILE = _CACHE_DIR / "clusters.json"
 
@@ -1018,5 +1018,5 @@ def index() -> str:
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.environ.get("TMI_DASHBOARD_PORT", "8788"))
+    port = int(os.environ.get("ABLIT_DASHBOARD_PORT", "8788"))
     uvicorn.run(app, host="127.0.0.1", port=port)

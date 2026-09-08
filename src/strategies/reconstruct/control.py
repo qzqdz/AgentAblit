@@ -89,7 +89,7 @@ def _user_text(content: Any) -> str:
     """Flatten a user message's content to text. Handles both plain-string content and the
     block/list form ([{"type":"text","text":...}, ...]) that OpenAI- and Anthropic-style
     clients send for multimodal turns — otherwise those turns read as empty and the sniffer
-    (and the whole TMI strategy) silently no-ops for them."""
+    (and the whole AgentAblit strategy) silently no-ops for them."""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -271,7 +271,7 @@ class ReconstructController:
         # only when util is unset or errors. See _extract_skills_cascade / handle().
         self.util_skill_extract_complete = util_skill_extract_complete
         # Size of the user-query intent window handed to the sniffer's rewrite-target stage
-        # (anchor + recent sliding window). Configurable via TMI_SNIFFER_INTENT_WINDOW.
+        # (anchor + recent sliding window). Configurable via ABLIT_SNIFFER_INTENT_WINDOW.
         self.intent_window_size = intent_window_size
         # Ablation switches (all default off = full mechanism enabled):
         #   ablate_graying    — pass_flawed delivers A unchanged (GRAY@flawed removed)
@@ -336,7 +336,7 @@ class ReconstructController:
         )
         # Full-context direct load: on salvage, hand B A's raw request (system prompt + full
         # history + tools) unchanged instead of the curated harness/steer coldstart. B is
-        # decensored so A's refusal text doesn't re-lock it. Env TMI_COLDSTART_PASSTHROUGH.
+        # decensored so A's refusal text doesn't re-lock it. Env ABLIT_COLDSTART_PASSTHROUGH.
         self.coldstart_passthrough = coldstart_passthrough
 
     async def _calibrate_reasoning(self, a_response: dict[str, Any]) -> dict[str, Any]:

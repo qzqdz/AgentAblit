@@ -364,7 +364,7 @@ def render_closed_history(
 #                 the cap survives for B's next tool_call (runs/context_ablation: snippet 0/6 at
 #                 verbose, value_snippet keeps it). COLDSTART/B ONLY — never a sniffer resolution
 #                 (verbatim values must not reach the aligned model; guarded in control.py).
-# Selected by config.context_resolution (TMI_CONTEXT_RESOLUTION); "" = legacy path.
+# Selected by config.context_resolution (ABLIT_CONTEXT_RESOLUTION); "" = legacy path.
 def render_context(
     resolution: str, conv_key: str, messages: list[dict],
     intent_window: list[str] | None = None, *, mode: str = "coldstart",

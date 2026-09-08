@@ -26,7 +26,7 @@ class UserWillSummarizer:
         classifier_fallback_client: RoleModelClient | None = None,
     ) -> None:
         # classifier_client: pure structural judgment, no harm-adjacent generation — safe to
-        # run on a safety-aligned model (e.g. the TMI_UTIL_* cloud model).
+        # run on a safety-aligned model (e.g. the ABLIT_UTIL_* cloud model).
         # rewrite_client: only invoked when action == pass_flawed (salvage no longer routes
         # through here, see summarize() below); has to write a harm-adjacent instruction an
         # aligned model would likely refuse, so it stays on the compliant model. Defaults to

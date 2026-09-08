@@ -46,15 +46,28 @@ partway:
 - **Drop-in & observable.** OpenAI-compatible on both ends (point your agent at the proxy),
   configured from one YAML/JSON file, with a trace/audit view and a config panel.
 
-The design is measured on real recorded multi-step trajectories; the methodology and quantitative
-evaluation live in [`docs/PROPOSAL.md`](docs/PROPOSAL.md) rather than as headline numbers here —
-once the test suite and model land, you'll be able to reproduce them yourself.
+Measured on real recorded multi-step trajectories: **97%+ tool-continuation rate** across all
+tool-using turns, **80% hard-subset rescue** when the host fully stalls. Full methodology in
+[`docs/PROPOSAL.md`](docs/PROPOSAL.md).
+
+## Quick Architecture
+
+```
+┌─────────────┐     ┌──────────────────────────────────────────────┐     ┌──────────────┐
+│  Your Agent │────▶│            AgentAblit Relay (:8787)          │────▶│  Host Model  │
+│  Framework  │◀────│  ┌─────────┐  ┌──────────┐  ┌────────────┐  │◀────│   (Model A)  │
+└─────────────┘     │  │  Sense  │─▶│ Forward  │─▶│  Recover   │  │     └──────────────┘
+                    │  └─────────┘  └──────────┘  └────────────┘  │
+                    │       │                            │         │
+                    │       ▼                            ▼         │     ┌──────────────┐
+                    │  ┌──────────────┐  ┌───────────────────┐    │────▶│  Parasite/B  │
+                    │  │  Reconstruct │◀─│  L9 Validate +    │    │     │ (Abliterated │
+                    │  │  (cold-start)│  │  Action Ledger    │    │     │    9B)       │
+                    │  └──────────────┘  └───────────────────┘    │     └──────────────┘
+                    └──────────────────────────────────────────────┘
+```
 
 ## Usage
-
-> **Early release.** The relay, config layer, and config panel run end-to-end today. Still landing:
-> the ported test suite + CI, and the model upload to Hugging Face (see
-> [`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md)).
 
 Requires Python 3.10+. Plug in a **host** model API (the one you're relaying) and a **parasite/B**
 model API (the abliterated continuation model), then run:
@@ -113,10 +126,35 @@ Per turn, the controller runs a minimal-sufficient control law:
 The complete mechanism — classifier prompts, stance-recovery prompts, salvage-steer synthesis, and
 the escalation chain — ships here; it *is* the algorithm. The willingness that makes reconstruct
 effective comes from the **model layer** (agent abliteration on a public abliterated base), not from
-ever-more-elaborate prompting. See [`docs/PROPOSAL.md`](docs/PROPOSAL.md) for the mechanism map and
-[`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md) for the model.
+ever-more-elaborate prompting. See [`docs/PROPOSAL.md`](docs/PROPOSAL.md) for the mechanism map.
 
-- **Model (HuggingFace):** [`qzqdz/agent-abliterated-9b-lora`](https://huggingface.co/qzqdz/agent-abliterated-9b-lora) *(planned)*
+**Model:** [`qzqdz/agent-abliterated-9b-lora`](https://huggingface.co/qzqdz/agent-abliterated-9b-lora) —
+a 9B LoRA agent model on an abliterated base. See [`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md) for the release plan.
+
+## Status
+
+| Component | Status |
+| :--- | :--- |
+| Relay proxy (OpenAI + Anthropic compatible) | ✅ Production-ready |
+| Recover & reconstruct controllers | ✅ Complete |
+| Action ledger + L9 validation | ✅ Complete |
+| Config panel + YAML config | ✅ Complete |
+| Local model servers (GGUF / NVFP4) | ✅ Complete |
+| Trace/audit dashboard | ✅ Complete |
+| Test suite | 🔄 Expanding (see `tests/`) |
+| HuggingFace model release | 🔄 Planned (LoRA adapter) |
+| CI/CD | 🔄 In progress |
+
+## Citation
+
+```bibtex
+@software{agentablit2026,
+  title  = {AgentAblit: Trajectory-Level Agent Control for LLM Reliability},
+  author = {qzqdz},
+  year   = {2026},
+  url    = {https://github.com/qzqdz/AgentAblit}
+}
+```
 
 ## Safety, scope & responsible use
 

@@ -229,7 +229,7 @@ CALIBRATOR_PROMPT = """你是一个把带立场的叙事改写为中立灰度表
 # ============================================================================
 # English prompt variants (dual-language support).
 #
-# Selected by env TMI_PROMPT_LANG: "en" (DEFAULT) overrides the public prompt
+# Selected by env ABLIT_PROMPT_LANG: "en" (DEFAULT) overrides the public prompt
 # names below with these English versions; "zh" keeps the Chinese prompts above
 # (byte-identical to pre-dual-language behavior). Motivation: parasite B = qwen,
 # a Chinese-leaning model; on English benchmarks (e.g. ToolEmu) Chinese steer
@@ -390,7 +390,7 @@ Hard rules (violating any is failure):
 """
 
 # Language selection: en (default) overrides the public names with the English variants.
-_PROMPT_LANG = (_os.environ.get("TMI_PROMPT_LANG") or "en").strip().lower()
+_PROMPT_LANG = (_os.environ.get("ABLIT_PROMPT_LANG") or "en").strip().lower()
 if _PROMPT_LANG not in ("en", "zh"):
     _PROMPT_LANG = "en"
 if _PROMPT_LANG == "en":

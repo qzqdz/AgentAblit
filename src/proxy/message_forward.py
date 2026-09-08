@@ -1,4 +1,4 @@
-"""TMI proxy with OpenAI-compatible and Anthropic-compatible endpoints."""
+"""AgentAblit relay — OpenAI-compatible and Anthropic-compatible trajectory stabilizer."""
 from __future__ import annotations
 
 import asyncio
@@ -83,7 +83,7 @@ def _reject_unknown_selector(requested: str) -> str | None:
     """
     if requested in ENGINE_SELECTORS:
         return None
-    return f"unknown TMI version {requested}"
+    return f"unknown AgentAblit engine selector {requested}"
 
 
 def _execution_mode(engine: str) -> str:
@@ -294,7 +294,7 @@ def build_recover_controller(config: ProxyConfig) -> RecoverController:
         api_key=config.recover_key or "tmi-local",
     )
     # Action classification is pure structural judgment (no harm-adjacent generation), so it
-    # can run on the safety-aligned TMI_UTIL_* model when configured — reusing the same
+    # can run on the safety-aligned ABLIT_UTIL_* model when configured — reusing the same
     # endpoint already wired for the trajectory summarizer. Falls back to the compliant
     # recover model (degraded, not broken) when the util model isn't configured.
     classifier_client = (
@@ -1444,7 +1444,7 @@ def create_app(
         # RETIRED by default (active_config.ablate_reasoning_san now defaults True). Superseded
         # by ReconstructController._calibrate_reasoning, which cleans A's reasoning_content at delivery
         # time instead of retroactively rewriting already-committed history on the next request.
-        # Kept for TMI_ABLATE_REASONING_SAN=0 comparison runs. Gated on the flag directly (not
+        # Kept for ABLIT_ABLATE_REASONING_SAN=0 comparison runs. Gated on the flag directly (not
         # just `_ctrl.reasoning_sanitizer` truthiness) — that object is now always constructed,
         # shared with ReconstructController._calibrate_reasoning's own, independent ablation flag.
         if version in ("recover_only", "full") and not active_config.ablate_reasoning_san:
@@ -1531,7 +1531,7 @@ def create_app(
              "response": data, **agent_meta},
         )
         # Passthrough (Vanilla / Parasite-only arms): deliver A's upstream response verbatim,
-        # no TMI rewrite. The OpenAI streaming branch above already forwards raw for any
+        # no AgentAblit rewrite. The OpenAI streaming branch above already forwards raw for any
         # non-passthrough engine; this is the matching non-streaming return.
         if version == "passthrough":
             return JSONResponse(status_code=status, content=data)
@@ -1699,7 +1699,7 @@ def create_app(
     # ------------------------------------------------------------------
     # Anthropic-compatible endpoint: POST /v1/messages
     # Accepts Anthropic API format from Claude Code / OpenClaw / etc.,
-    # converts to OpenAI internally, runs the TMI pipeline, converts back.
+    # converts to OpenAI internally, runs the AgentAblit pipeline, converts back.
     # ------------------------------------------------------------------
     @app.post("/v1/messages")
     @app.post("/messages")
@@ -1798,7 +1798,7 @@ def create_app(
                 if _sanitized is not prepared["messages"]:
                     prepared = {**prepared, "messages": _sanitized}
 
-        # Always fetch serialized response from upstream for TMI rewriting
+        # Always fetch serialized response from upstream for AgentAblit rewriting
         _t_up = time.monotonic()
         status, data = await _post_upstream_serialized(
             active_config, prepared, http_client_factory

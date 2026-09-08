@@ -10,13 +10,13 @@ Reconstruct / Recover 走 `/v1/chat/completions`（B），两者都可复用同�
 | `gguf_server.py` | GGUF / llama.cpp | PC（无 GPU 训练栈） | 16K 默认（可配置） |
 | `nvfp4_server.py` | transformers / NVFP4 | GPU 服务器（Blackwell） | 大（~262144，裁剪天然 no-op） |
 
-TMI proxy 通过 `AGENTABLIT_RECOVER_BASE_URL`（→ `/v1/chat/completions`）或 `calibration_url`（→ `/correct`）
+AgentAblit relay 通过 `AGENTABLIT_RECOVER_BASE_URL`（→ `/v1/chat/completions`）或 `calibration_url`（→ `/correct`）
 连这个 server,两个文件对 proxy 完全可互换。
 
 > GGUF 部署上下文明显小于 NVFP4（16K/32K vs ~262144）。如果本地这台 B 塞不下或跑不动某些
 > 纯读取/总结/判断类的活（技能目录、长轨迹摘要），可以选配一个云端 `util` 模型顶上去——
-> 它**不是要额外起的服务**，只是三五个环境变量（`TMI_UTIL_*`），不需要本地硬件/量化。
-> 详见根目录 `README.md` 里的 `TMI_UTIL_*` 说明。
+> 它**不是要额外起的服务**，只是三五个环境变量（`ABLIT_UTIL_*`），不需要本地硬件/量化。
+> 详见根目录 `README.md` 里的 `ABLIT_UTIL_*` 说明。
 
 ---
 
@@ -38,16 +38,16 @@ launch\9b.bat
 ~~~
 
 默认使用 D:\tools\Anaconda\envs\webagent\python.exe（可用
-TMI_GGUF_PYTHON 覆盖）、端口 8011、16K context、全层 CUDA offload。8 GiB
-显存先从 16K 开始，稳定后再提高 TMI_GGUF_N_CTX。
+ABLIT_GGUF_PYTHON 覆盖）、端口 8011、16K context、全层 CUDA offload。8 GiB
+显存先从 16K 开始，稳定后再提高 ABLIT_GGUF_N_CTX。
 
 关键环境变量：
 
-- TMI_GGUF_MODEL_PATH：精确 GGUF 文件，优先级最高。
-- TMI_GGUF_MODEL_DIR：只在未指定精确文件时扫描目录。
-- TMI_GGUF_N_CTX、TMI_GGUF_N_GPU_LAYERS、TMI_GGUF_N_BATCH、
-  TMI_GGUF_N_THREADS、TMI_GGUF_FLASH_ATTN。
-- TMI_GGUF_QUEUE_TIMEOUT、TMI_GGUF_MAX_IN_SYSTEM：限制单 GPU 等待时间和排队请求数。
+- ABLIT_GGUF_MODEL_PATH：精确 GGUF 文件，优先级最高。
+- ABLIT_GGUF_MODEL_DIR：只在未指定精确文件时扫描目录。
+- ABLIT_GGUF_N_CTX、ABLIT_GGUF_N_GPU_LAYERS、ABLIT_GGUF_N_BATCH、
+  ABLIT_GGUF_N_THREADS、ABLIT_GGUF_FLASH_ATTN。
+- ABLIT_GGUF_QUEUE_TIMEOUT、ABLIT_GGUF_MAX_IN_SYSTEM：限制单 GPU 等待时间和排队请求数。
 - Proxy：AGENTABLIT_PARASITE_URL=http://127.0.0.1:8011/v1/chat/completions。
 
 Windows server 接收 OpenAI tools/tool_choice/parallel_tool_calls，保留历史
@@ -79,7 +79,7 @@ python scripts\smoke_win_gguf_b.py
 
 ## 方法二：NVFP4 / transformers（GPU 服务器）
 
-`nvfp4_server.py` 是 TMI 的唯一 NVFP4 服务实现，包含真流式、thinking、tool_calls 和
+`nvfp4_server.py` 是 AgentAblit 的唯一 NVFP4 服务实现，包含真流式、thinking、tool_calls 和
 `/correct` 端点。`fp4_linear.py` 与共享 tool-output codec 都随仓库维护，所以仓库内部署自包含。
 
 ```bash

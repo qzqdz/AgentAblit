@@ -1,4 +1,4 @@
-"""Anthropic ↔ OpenAI format conversion utilities for TMI proxy.
+"""Anthropic ↔ OpenAI format conversion utilities for AgentAblit relay.
 
 Converts incoming Anthropic /v1/messages requests to OpenAI chat completion
 format (for upstream Dashscope) and converts OpenAI responses back to

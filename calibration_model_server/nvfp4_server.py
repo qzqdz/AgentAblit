@@ -1,8 +1,8 @@
-"""TMI calibration model server — NVFP4 / transformers deployment (GPU server).
+"""AgentAblit calibration model server — NVFP4 / transformers deployment (GPU server).
 
 This is the canonical NVFP4 implementation for tmi-attack. It shares the schema-aware
 Qwen tool-output codec with the GGUF backend and includes a
-`POST /correct` endpoint so it is a drop-in for the GGUF calibration server wherever the TMI
+`POST /correct` endpoint so it is a drop-in for the GGUF calibration server wherever AgentAblit
 proxy points its calibration_url. See gguf_server.py for the llama.cpp deployment and README.md.
 
 - 模型: trl v1.5 微调的 Qwen3.5-9B（基座 qwen3.5-9b-abliterated，max_position 262144）
@@ -115,7 +115,7 @@ class ChatReq(BaseModel):
 
 
 # ── /correct contract (parity with src/shared/calibration_server.py) ───────
-# The TMI proxy's corrector and the no-base_url fallback call POST
+# The AgentAblit relay's corrector and the no-base_url fallback call POST
 # /correct {benign, question} -> {answer}.  Kept identical so this nvfp4 server is a
 # drop-in for the GGUF server wherever the proxy points its calibration_url.
 CORRECT_SYSTEM_PROMPT = (
