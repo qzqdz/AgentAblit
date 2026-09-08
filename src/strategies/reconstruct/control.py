@@ -76,7 +76,7 @@ def _first_tool_call(response: dict[str, Any]) -> dict[str, Any]:
 
 
 def _tool_call_batch(response: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return the entire assistant tool-call batch; L9 accepts or rejects it atomically."""
+    """Return the entire assistant tool-call batch; the validation gate accepts or rejects it atomically."""
     found = first_assistant_message(response)
     if found is None:
         return []
@@ -295,11 +295,11 @@ class ReconstructController:
         # config.py field comments for the exact scope of each.
         self.ablate_reconstruct = ablate_reconstruct
         self.ablate_recover = ablate_recover
-        # ablate_l3 — remove the L3 hijack-escalation ladder (default False = ON). When primary B
-        # + aligned fallback B both fail to forge a valid tool_call, L3 re-attempts the hijack with
-        # escalated levers (full-context passthrough on primary then fallback B) before dropping to
-        # salvage_text. Set True to reproduce the legacy B-fails→salvage_text behavior. In the
-        # reconstruct family, so ablate_reconstruct removes it too.
+        # ablate_l3 — remove the hijack-escalation ladder (default False = ON). When primary B +
+        # aligned fallback B both fail to forge a valid tool_call, the ladder re-attempts the
+        # hijack with escalated levers (full-context passthrough on primary then fallback B)
+        # before dropping to salvage_text. Set True to reproduce the legacy B-fails→salvage_text
+        # behavior. In the reconstruct family, so ablate_reconstruct removes it too.
         self.ablate_l3 = ablate_l3
         # Use the SYNTHESIZED per-turn Q⊕A trajectory (observer_context.render) for both the
         # sniffer and coldstart, instead of the A-only flat summary + side-by-side intent_window.
@@ -449,7 +449,7 @@ class ReconstructController:
         if provider_refusal or provider_filtered:
             # The upstream explicitly withheld the assistant action.  No semantic guess is
             # necessary and an empty `message.content` cannot be fed to UserWillInput anyway.
-            # Route it to the normal salvage/L5-L9 path and record why the LLM sniffer did not
+            # Route it to the normal salvage/validate path and record why the LLM sniffer did not
             # run, rather than fail-open and return the provider block unchanged.
             action = "salvage"
             sniffer = SnifferVerdict(
@@ -648,8 +648,8 @@ class ReconstructController:
                 cold_output = _extract_assistant_output(cold.final_response)
                 if cold.b_status < 400 and cold_output.get("tool_calls_present"):
                     verdict = "valid"
-                    # L9 is an output safety/correctness boundary, independent of the history
-                    # codec.  Validate the whole batch and permit at most one grounded retry.
+                    # The validation gate is an output safety/correctness boundary, independent of
+                    # the history codec.  Validate the whole batch, permit at most one grounded retry.
                     _t0 = time.monotonic()
                     cold, verdict = await self._validate_salvage(
                         cold, request_body, tools, steer_text, http_client_factory,
@@ -693,7 +693,7 @@ class ReconstructController:
                 elif not cold_output.get("tool_calls_present"):
                     coldstart_failure = "coldstart:no_tool_calls"
                 else:
-                    coldstart_failure = "coldstart:l9_invalid"
+                    coldstart_failure = "coldstart:validation_failed"
             except Exception as exc:
                 coldstart_failure = _failure_label("coldstart", exc)
 
@@ -702,7 +702,7 @@ class ReconstructController:
             # content is a degenerate repetition loop that never closes its tool-call
             # syntax). Retry ONCE against a stronger secondary B before giving up to
             # salvage_text, which only blurs A's own refusal (no real capability
-            # transfer). Skips the L9 validate-and-repair retry (that path is wired to
+            # transfer). Skips the validate-and-repair retry (that path is wired to
             # self.swapper); a clean tool_calls array from the fallback is delivered as-is.
             if coldstart_failure and self.swapper_fallback is not None:
                 try:
@@ -748,7 +748,7 @@ class ReconstructController:
         else:
             coldstart_failure = "coldstart:no_tools"
 
-        # L3 hijack escalation. Primary B and the aligned fallback B both failed to forge a valid
+        # Hijack escalation. Primary B and the aligned fallback B both failed to forge a valid
         # tool_call — the STABLE failure mode (measured 3/4 real multi-step cases fail on every
         # retry, so a plain retry is useless). Instead of dropping to salvage_text (dead chain),
         # escalate the hijack: re-attempt with full original context (passthrough) on each rung
@@ -757,17 +757,17 @@ class ReconstructController:
         # removes just this ladder; ablate_reconstruct (already declined real swaps above) and
         # disable_salvage remove it too; needs real tools to call.
         if coldstart_failure and tools and not self.ablate_l3 and not self.ablate_reconstruct:
-            l3_cold, l3_label = await self._try_l3_escalation(
+            esc_cold, esc_label = await self._try_hijack_escalation(
                 request_body, steer_text, tools, http_client_factory, conv_key,
                 skills_cache.summary_for_request(request_body), timings,
                 intent_window, qa_progress, a_output,
             )
-            if l3_cold is not None:
+            if esc_cold is not None:
                 return self._deliver(
-                    l3_cold.final_response, l3_cold.b_status, signal, sniffer, "salvage_tool",
-                    swap_executed=True, b_status=l3_cold.b_status,
-                    progress_source=f"{progress_source};{l3_label}",
-                    b_candidate_response=l3_cold.final_response,
+                    esc_cold.final_response, esc_cold.b_status, signal, sniffer, "salvage_tool",
+                    swap_executed=True, b_status=esc_cold.b_status,
+                    progress_source=f"{progress_source};{esc_label}",
+                    b_candidate_response=esc_cold.final_response,
                     failure=coldstart_failure,
                     timings=timings,
                 )
@@ -792,11 +792,11 @@ class ReconstructController:
             timings=timings,
         )
 
-    async def _try_l3_escalation(
+    async def _try_hijack_escalation(
         self, request_body, steer_text, tools, http_client_factory, conv_key,
         skills_summary, timings, intent_window, qa_progress, a_output,
     ):
-        """L3 hijack escalation ladder. Fires when the primary B AND the aligned fallback B both
+        """Hijack-escalation ladder. Fires when the primary B AND the aligned fallback B both
         failed to forge a valid tool_call (the STABLE failure mode measured on real multi-step
         cases: 9B returns 200 with no tool_calls, or a schema-invalid batch). Rather than drop to
         salvage_text (dead action chain / no capability transfer), re-attempt the hijack with
@@ -804,7 +804,7 @@ class ReconstructController:
 
           rung 1: primary B (the decensored local 9B), passthrough=True — hand B the ORIGINAL full
                   agent context (system prompt + full history + real tool schemas) instead of the
-                  compressed snippet. Targets coldstart:l9_invalid (bad args from a lossy snippet).
+                  compressed snippet. Targets coldstart:validation_failed (bad args from a lossy snippet).
                   Passthrough is safe here ONLY because B is decensored and won't refuse.
           rung 2: the fallback B (a stronger, possibly ALIGNED model), passthrough=False + the
                   stance-LAUNDERED steer. 🔴 An aligned model MUST NOT get passthrough: the raw
@@ -816,7 +816,7 @@ class ReconstructController:
                   last for recency. Targets coldstart:no_tool_calls (capability gap) WITHOUT
                   tripping alignment.
 
-        Returns the first cold result whose forged batch passes L9 validation, else None → caller
+        Returns the first cold result whose forged batch passes validation, else None → caller
         degrades to salvage_text. Each rung's forge is validated by the SAME _validate_salvage gate
         the primary path uses, so a schema-invalid escalation is rejected, never delivered.
         """

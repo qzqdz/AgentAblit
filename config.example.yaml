@@ -66,7 +66,7 @@ mechanism:
   # disable_salvage: false          # disable all parasite rescue
   # ablate_reconstruct: false       # disable tool-call forging
   # ablate_recover: false           # disable prose graying
-  ablate_l3: false                  # disable the L3 escalation rung
+  ablate_l3: false                  # disable the hijack-escalation rung
   # ablate_trajectory: false
 
 # prompt_lang: en                   # en | zh (affects parasite prompt language)

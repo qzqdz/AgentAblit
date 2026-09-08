@@ -95,7 +95,7 @@ class ReconstructResult:
     b_candidate_response: dict[str, Any] | None = None
     # Per-substep wall-clock seconds for whichever of these actually ran this turn:
     # reasoning_sanitizer, sniffer_classifier (bundles the recover calibrator.rewrite for
-    # pass_flawed), salvage_steer_synthesis, b_coldstart, b_coldstart_retry (L9 repair
+    # pass_flawed), salvage_steer_synthesis, b_coldstart, b_coldstart_retry (validation-repair
     # retry). Added 2026-07-22 to stop guessing which stage the Recover/Reconstruct
     # wall-clock gap over B's own gen_seconds actually belongs to.
     timings: dict[str, float] | None = None
