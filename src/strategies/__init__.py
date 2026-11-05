@@ -2,7 +2,7 @@
 
 The two subpackages are NOT mutually-exclusive software versions: they are the
 functional layers of one REGI system, dispatched by the engine selector
-(`AGENTABLIT_ENGINE` / `x-tmi-version`) in `proxy.message_forward`.
+(`AGENTABLIT_ENGINE` / `x-agentablit-version`) in `proxy.message_forward`.
 
 - `recover` — reachability sensing + Recover text rewriting (sniffer / calibration).
 - `reconstruct` — REGI orchestrator + Reconstruct engine + state/context augmentation

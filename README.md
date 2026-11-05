@@ -139,7 +139,7 @@ effective comes from the **model layer** (agent abliteration on a public abliter
 ever-more-elaborate prompting. See [`docs/PROPOSAL.md`](docs/PROPOSAL.md) for the mechanism map.
 
 **Model:** [`qzqdz/agent-abliterated-9b-lora`](https://huggingface.co/qzqdz/agent-abliterated-9b-lora) —
-a 9B LoRA agent model on an abliterated base. See [`docs/HF_RELEASE_PLAN.md`](docs/HF_RELEASE_PLAN.md) for the release plan.
+a 9B LoRA agent model on an abliterated base.
 
 ## FAQ
 

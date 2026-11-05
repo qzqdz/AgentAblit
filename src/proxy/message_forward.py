@@ -164,7 +164,7 @@ def _role_client(
     *,
     max_tokens: int = 512,
     model: str = "local-calibration",
-    api_key: str = "tmi-local",
+    api_key: str = "agentablit-local",
 ):
     if base_url:
         return OpenAICompatibleRoleModelClient(
@@ -172,7 +172,7 @@ def _role_client(
             timeout=timeout,
             max_tokens=max_tokens,
             model=model,
-            api_key=api_key or "tmi-local",
+            api_key=api_key or "agentablit-local",
         )
     return CorrectEndpointClient(
         fallback_url,
@@ -230,7 +230,7 @@ def build_reconstruct_controller(config: ProxyConfig) -> ReconstructController:
             config.role_timeout,
             max_tokens=TRAJECTORY_SUMMARY_MAX_TOKENS,
             model=config.recover_model or "local-calibration",
-            api_key=config.recover_key or "tmi-local",
+            api_key=config.recover_key or "agentablit-local",
         ).complete
     # Host skill listing is pure structural extraction (same "no harm-adjacent generation"
     # reasoning as the action classifier in build_recover_controller below), so it defaults to
@@ -291,7 +291,7 @@ def build_recover_controller(config: ProxyConfig) -> RecoverController:
         config.role_timeout,
         max_tokens=max_tok,
         model=config.recover_model or "local-calibration",
-        api_key=config.recover_key or "tmi-local",
+        api_key=config.recover_key or "agentablit-local",
     )
     # Action classification is pure structural judgment (no harm-adjacent generation), so it
     # can run on the safety-aligned ABLIT_UTIL_* model when configured — reusing the same
@@ -544,7 +544,7 @@ def _apply_recover_rewrite(data: dict, event: dict[str, object]) -> dict:
 # Value = _NO_REWRITE sentinel (sanitized, keep original) OR the rewritten string.
 # Negative results MUST be cached too, else every "pass" reasoning re-runs the 9B
 # sanitize each turn — the dominant cost.
-_NO_REWRITE = "\x00__tmi_no_rewrite__"  # sentinel distinct from any real rewrite
+_NO_REWRITE = "\x00__agentablit_no_rewrite__"  # sentinel distinct from any real rewrite
 _REASONING_CACHE: "OrderedDict[str, str]" = OrderedDict()
 _REASONING_CACHE_CAP = 4096
 
@@ -794,7 +794,7 @@ async def _emit_pseudo_stream_response(
         finish_reason = str(choice.get("finish_reason") or "").strip() or "stop"
 
     base_event = {
-        "id": data.get("id") or "chatcmpl-tmi-pseudo",
+        "id": data.get("id") or "chatcmpl-agentablit-pseudo",
         "object": "chat.completion.chunk",
         "created": data.get("created") or 0,
         "model": data.get("model") or "",
@@ -1398,7 +1398,7 @@ def create_app(
         # the configured AGENTABLIT_ENGINE. The engine selector drives dispatch below; the
         # requested selector is kept for REGI audit.
         requested_version, version = _resolve_execution_selector(
-            request.headers.get("x-tmi-version"), active_config.engine
+            request.headers.get("x-agentablit-version"), active_config.engine
         )
         error_msg = _reject_unknown_selector(requested_version)
         if error_msg is not None:
@@ -1738,7 +1738,7 @@ def create_app(
         # Same shared selector resolution as /v1/chat/completions (header wins over the
         # configured engine).
         requested_version, version = _resolve_execution_selector(
-            request.headers.get("x-tmi-version"), active_config.engine
+            request.headers.get("x-agentablit-version"), active_config.engine
         )
         error_msg = _reject_unknown_selector(requested_version)
         if error_msg is not None:

@@ -71,7 +71,7 @@ class OpenAICompatibleRoleModelClient:
         *,
         timeout: float = 120.0,
         model: str = "local-calibration",
-        api_key: str = "tmi-local",
+        api_key: str = "agentablit-local",
         max_tokens: int = 512,
     ) -> None:
         self.base_url = base_url.rstrip("/")
@@ -80,7 +80,7 @@ class OpenAICompatibleRoleModelClient:
         self.max_tokens = max_tokens
         self.calls = 0
         client_kwargs = {
-            "api_key": api_key or "tmi-local",
+            "api_key": api_key or "agentablit-local",
             "base_url": self.base_url,
             "timeout": self.timeout,
         }

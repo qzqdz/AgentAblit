@@ -320,7 +320,7 @@ def _build_coldstart_body(
         # Over budget: route to the STRUCTURE-AWARE, budget-checked coldstart_v2 builder, which
         # keeps action-critical units + steer within char_budget and, when even the minimum won't
         # fit (e.g. a single oversized system/tool message — measured on real "2 msgs" cases at
-        # 200K-400K tok), sets _tmi_context_status="context_insufficient" so ABSwapper.coldstart
+        # 200K-400K tok), sets _agentablit_context_status="context_insufficient" so ABSwapper.coldstart
         # returns HTTP 422 WITHOUT sending an over-limit request (no wasted 500 round-trip). The
         # plain native/snippet path below is NOT safe here: it passes the current segment through
         # verbatim, so a single huge message would still overflow. Force v2 for the guard.
@@ -402,7 +402,7 @@ async def _resolve_tool_overflow(
     lexical fallback ranking — no observer C call in this rollout step) instead of leaving
     the turn to fail with context_insufficient. Returns ``b_body`` unchanged whenever the
     resolver cannot help or tool schemas don't adapt cleanly — never raises."""
-    plan = b_body.get("_tmi_context_plan") or {}
+    plan = b_body.get("_agentablit_context_plan") or {}
     char_budget = plan.get("char_budget")
     estimated = plan.get("estimated_context_chars")
     tool_chars = plan.get("tool_schema_projected_chars")
@@ -455,7 +455,7 @@ async def _resolve_tool_overflow(
         skills_summary, conv_key, context_resolution_coldstart, include_history,
         passthrough, recall_unit_ids,
     )
-    retry_body.setdefault("_tmi_context_plan", {})["asset_resolver"] = {
+    retry_body.setdefault("_agentablit_context_plan", {})["asset_resolver"] = {
         "used": True,
         "reason": selection.reason,
         "mandatory_tool_ids": sorted(selection.mandatory_ids),
@@ -503,7 +503,7 @@ class ABSwapper:
             passthrough, recall_unit_ids,
         )
         if _CONTEXT_ASSET_RESOLVER_ENABLED \
-                and b_body.get("_tmi_context_status") == "context_insufficient":
+                and b_body.get("_agentablit_context_status") == "context_insufficient":
             b_body = await _resolve_tool_overflow(
                 request_body=request_body,
                 steer_text=steer_text,
@@ -517,8 +517,8 @@ class ABSwapper:
                 recall_unit_ids=recall_unit_ids,
                 b_body=b_body,
             )
-        context_plan = b_body.get("_tmi_context_plan") or None
-        if b_body.get("_tmi_context_status") == "context_insufficient":
+        context_plan = b_body.get("_agentablit_context_plan") or None
+        if b_body.get("_agentablit_context_status") == "context_insufficient":
             error = {
                 "error": {
                     "type": "context_insufficient",
@@ -533,8 +533,8 @@ class ABSwapper:
                 final_response=error,
                 context_plan=context_plan,
             )
-        b_body.pop("_tmi_context_status", None)
-        b_body.pop("_tmi_context_plan", None)
+        b_body.pop("_agentablit_context_status", None)
+        b_body.pop("_agentablit_context_plan", None)
         headers = {
             "Authorization": f"Bearer {self.b_api_key}",
             "Content-Type": "application/json",

@@ -13,8 +13,8 @@ VERSION = "full"
 class StructuralSignal:
     """Deterministic, non-semantic facts about A's response and the request.
 
-    LLM-First (see .claude/docs/PLAN_LLM_FIRST.md): this carries ONLY structural
-    facts (does the request expose tools? did A emit tool_calls?), never a semantic
+    LLM-First: this carries ONLY structural facts (does the request expose tools?
+    did A emit tool_calls?), never a semantic
     judgment about whether A refused. All stance/refusal judgment is the LLM sniffer's
     job (UserWillSummary.action), surfaced separately as SnifferVerdict.
     """
@@ -57,7 +57,7 @@ class RoleSwapResult:
     b_status: int
     b_response: dict[str, Any]
     final_response: dict[str, Any]
-    # Hybrid V2's _tmi_context_plan (mandatory/selected/dropped tool IDs, asset_resolver
+    # Hybrid V2's _agentablit_context_plan (mandatory/selected/dropped tool IDs, asset_resolver
     # trace when the overflow rescue ran, etc.) — popped off the request body before POST
     # on every path so it doesn't leak to B, but kept here for callers that want to log or
     # evaluate it (e.g. the step-6 next-action harness's recall@k). None if V2 wasn't used.

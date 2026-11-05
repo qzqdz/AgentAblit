@@ -1,6 +1,6 @@
 """AgentAblit calibration model server — NVFP4 / transformers deployment (GPU server).
 
-This is the canonical NVFP4 implementation for tmi-attack. It shares the schema-aware
+This is the canonical NVFP4 implementation for AgentAblit. It shares the schema-aware
 Qwen tool-output codec with the GGUF backend and includes a
 `POST /correct` endpoint so it is a drop-in for the GGUF calibration server wherever AgentAblit
 proxy points its calibration_url. See gguf_server.py for the llama.cpp deployment and README.md.

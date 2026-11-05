@@ -106,8 +106,8 @@ SKILL_EXTRACT_MAX_TOKENS = 512
 # prompt, which injects a refusal/moralizing tail and restates the harmful subject. The
 # harmful SUBJECT is intentionally abstracted out here; it re-enters via the 9B-grayed steer.
 TRAJECTORY_SUMMARY_MAX_TOKENS = 400
-# Output conforms to PLAN_LLM_FIRST.md: a single <task_output> root tag wrapping valid JSON,
-# nothing outside it. Successful parse IS the cooperation gate (a refusal yields no valid
+# Output contract: a single <task_output> root tag wrapping valid JSON, nothing outside it.
+# Successful parse IS the cooperation gate (a refusal yields no valid
 # task_output → parse fails → cascade to retry/9B) — so no hardcoded refusal-keyword list
 # is needed (the spec forbids 固定关键词列表). Justice-recorder framing elicits cooperation.
 TRAJECTORY_SUMMARY_PROMPT = (

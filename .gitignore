@@ -24,6 +24,5 @@ outputs/
 # Local
 .DS_Store
 *.log
-.claude/
 config.yaml
 config.yml

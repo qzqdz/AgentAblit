@@ -217,7 +217,7 @@ def openai_to_anthropic_response(data: dict, req_model: str) -> dict:
 
     usage = data.get("usage") or {}
     return {
-        "id": data.get("id") or "msg_tmi",
+        "id": data.get("id") or "msg_agentablit",
         "type": "message",
         "role": "assistant",
         "content": content,
@@ -259,7 +259,7 @@ async def emit_anthropic_stream(data: dict, req_model: str) -> AsyncGenerator[by
     usage = data.get("usage") or {}
     input_tokens = usage.get("prompt_tokens", 0)
     output_tokens = usage.get("completion_tokens", 0)
-    msg_id = data.get("id") or "msg_tmi"
+    msg_id = data.get("id") or "msg_agentablit"
 
     # 1. message_start
     yield _sse("message_start", {

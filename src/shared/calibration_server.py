@@ -790,7 +790,7 @@ class RewriteModelRunner:
             {
                 "type": "function",
                 "function": {
-                    "name": "tmi_probe_read",
+                    "name": "agentablit_probe_read",
                     "description": "Startup-only native tool-history contract probe.",
                     "parameters": {
                         "type": "object",
@@ -810,10 +810,10 @@ class RewriteModelRunner:
                     "content": None,
                     "tool_calls": [
                         {
-                            "id": "call_tmi_startup_probe",
+                            "id": "call_agentablit_startup_probe",
                             "type": "function",
                             "function": {
-                                "name": "tmi_probe_read",
+                                "name": "agentablit_probe_read",
                                 "arguments": '{"path":"ABLIT_STARTUP_PATH_7d91"}',
                             },
                         }
@@ -821,8 +821,8 @@ class RewriteModelRunner:
                 },
                 {
                     "role": "tool",
-                    "tool_call_id": "call_tmi_startup_probe",
-                    "name": "tmi_probe_read",
+                    "tool_call_id": "call_agentablit_startup_probe",
+                    "name": "agentablit_probe_read",
                     "content": "ABLIT_STARTUP_RESULT_c42e",
                 },
             ]
@@ -836,7 +836,7 @@ class RewriteModelRunner:
             prompt = rendered.prompt
             required = (
                 "<tool_call>",
-                "<function=tmi_probe_read>",
+                "<function=agentablit_probe_read>",
                 "<parameter=path>",
                 "ABLIT_STARTUP_PATH_7d91",
                 "</parameter>",
@@ -855,7 +855,7 @@ class RewriteModelRunner:
             path_value = prompt.index("ABLIT_STARTUP_PATH_7d91")
             parameter_open = prompt.rfind("<parameter=path>", 0, path_value)
             parameter_close = prompt.find("</parameter>", path_value)
-            function_open = prompt.rfind("<function=tmi_probe_read>", 0, parameter_open)
+            function_open = prompt.rfind("<function=agentablit_probe_read>", 0, parameter_open)
             call_open = prompt.rfind("<tool_call>", 0, function_open)
             function_close = prompt.find("</function>", parameter_close)
             call_close = prompt.find("</tool_call>", function_close)
@@ -1478,13 +1478,13 @@ def create_app(
         report = active_runner.describe()
         runtime = report.get("runtime") if isinstance(report.get("runtime"), dict) else {}
         values = {
-            "tmi_gguf_ready": int(bool(report.get("ready"))),
-            "tmi_gguf_loaded": int(bool(report.get("loaded"))),
-            "tmi_gguf_inference_active": int(runtime.get("active") or 0),
-            "tmi_gguf_queue_depth": int(runtime.get("queued") or 0),
-            "tmi_gguf_queue_rejected_total": int(runtime.get("queue_rejected_total") or 0),
-            "tmi_gguf_queue_timeout_total": int(runtime.get("queue_timeout_total") or 0),
-            "tmi_gguf_model_load_seconds": float(runtime.get("load_seconds") or 0.0),
+            "agentablit_gguf_ready": int(bool(report.get("ready"))),
+            "agentablit_gguf_loaded": int(bool(report.get("loaded"))),
+            "agentablit_gguf_inference_active": int(runtime.get("active") or 0),
+            "agentablit_gguf_queue_depth": int(runtime.get("queued") or 0),
+            "agentablit_gguf_queue_rejected_total": int(runtime.get("queue_rejected_total") or 0),
+            "agentablit_gguf_queue_timeout_total": int(runtime.get("queue_timeout_total") or 0),
+            "agentablit_gguf_model_load_seconds": float(runtime.get("load_seconds") or 0.0),
         }
         return "".join(f"{name} {value}\n" for name, value in values.items())
 
@@ -1508,7 +1508,7 @@ def create_app(
                 {
                     "id": "local-calibration",
                     "object": "model",
-                    "owned_by": "tmi-local",
+                    "owned_by": "agentablit-local",
                 }
             ],
         }

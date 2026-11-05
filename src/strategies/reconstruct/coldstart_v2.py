@@ -3,7 +3,7 @@
 The planner freezes one ledger revision, computes recursive hard dependency closure, assigns a
 minimum evidence-card representation before optional native upgrades, and accounts for the whole
 request context.  If P0/P1 evidence cannot fit, it returns an explicit
-``_tmi_context_status=context_insufficient``; callers must not send that body to B.
+``_agentablit_context_status=context_insufficient``; callers must not send that body to B.
 """
 from __future__ import annotations
 
@@ -621,8 +621,8 @@ def build_coldstart_v2_body(
     body.pop("max_completion_tokens", None)
     body.pop("stream_options", None)
     # The V2 harness asks for a next action but preserves a caller's stronger explicit choice.
-    body["_tmi_context_status"] = "context_insufficient" if insufficient else "ok"
-    body["_tmi_context_plan"] = {
+    body["_agentablit_context_status"] = "context_insufficient" if insufficient else "ok"
+    body["_agentablit_context_plan"] = {
         "schema_version": "hybrid-v2-plan.3",
         "ledger_revision": units[-1].get("ledger_revision") if units else None,
         "checkpoint_prefix_hash": checkpoint.get("source_prefix_hash"),

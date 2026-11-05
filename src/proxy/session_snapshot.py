@@ -65,12 +65,6 @@ def empty_session_snapshot(session_id: str, agent_meta: dict[str, str] | None = 
             "tool_calls_present": False,
         },
         "snippet": {
-            "injection": {
-                "applied": False,
-                "original": "",
-                "injected": "",
-                "backend": "",
-            },
             "sniffer": {
                 "turn_stage": "",
                 "action": "",
@@ -107,7 +101,6 @@ def build_session_snapshot(
     snapshot = empty_session_snapshot(session_id, agent_meta)
     request_event = _latest_request_event(events)
     response_event = _latest_response_event(events)
-    injection_event = _latest_event(events, "tmi_injection")
     sniffer_event = _latest_event(events, "recover_completed")
     reconstruct_event = _latest_event(events, "reconstruct_completed")
     response = response_event.get("response") or {}
@@ -141,12 +134,6 @@ def build_session_snapshot(
         "reasoning_content": str(message.get("reasoning_content") or ""),
         "finish_reason": str(choice.get("finish_reason") or ""),
         "tool_calls_present": bool(message.get("tool_calls")),
-    }
-    snapshot["snippet"]["injection"] = {
-        "applied": bool(injection_event),
-        "original": str(injection_event.get("original") or ""),
-        "injected": str(injection_event.get("injected") or ""),
-        "backend": str(injection_event.get("backend") or ""),
     }
     snapshot["snippet"]["sniffer"] = {
         "turn_stage": str(sniffer_event.get("turn_stage") or ""),

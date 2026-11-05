@@ -250,13 +250,6 @@ def _latest_response_event(events: list[dict[str, Any]]) -> dict[str, Any] | Non
     )
 
 
-def _latest_injection_event(events: list[dict[str, Any]]) -> dict[str, Any] | None:
-    return next(
-        (event for event in reversed(events) if event.get("event_type") == "tmi_injection"),
-        None,
-    )
-
-
 def _latest_recover_event(events: list[dict[str, Any]]) -> dict[str, Any] | None:
     return next(
         (event for event in reversed(events) if event.get("event_type") == "recover_completed"),
@@ -376,7 +369,6 @@ def _trajectory_anchor(events: list[dict[str, Any]]) -> dict[str, Any]:
 def _latest_turn_analysis(events: list[dict[str, Any]], session_id: str) -> dict[str, Any]:
     request_event = _latest_request_event(events) or {}
     response_event = _latest_response_event(events) or {}
-    injection_event = _latest_injection_event(events) or {}
     sniffer_event = _latest_recover_event(events) or {}
     reconstruct_event = _latest_reconstruct_event(events)
     response = response_event.get("response") or {}
@@ -400,12 +392,6 @@ def _latest_turn_analysis(events: list[dict[str, Any]], session_id: str) -> dict
             "reasoning_content": str(message.get("reasoning_content") or ""),
             "finish_reason": finish_reason,
             "tool_calls_present": tool_calls_present,
-        },
-        "injection": {
-            "applied": bool(injection_event),
-            "original": str(injection_event.get("original") or ""),
-            "injected": str(injection_event.get("injected") or ""),
-            "backend": str(injection_event.get("backend") or ""),
         },
         "sniffer": {
             "turn_stage": str(sniffer_event.get("turn_stage") or inferred_turn_stage),
@@ -504,7 +490,6 @@ def _summarize(path: Path) -> dict[str, Any]:
 
 def _summarize_uncached(path: Path) -> dict[str, Any]:
     events = _load_events(path)
-    injections = [event for event in events if event.get("event_type") == "tmi_injection"]
     responses = [
         event
         for event in events
@@ -555,8 +540,6 @@ def _summarize_uncached(path: Path) -> dict[str, Any]:
         "normalized_request_text": _normalize_text(request_text),
         "normalized_session_text": _normalize_text(combined_text),
         "event_count": len(events),
-        "has_injection": bool(injections),
-        "injection_count": len(injections),
         "has_predictor_debug": has_predictor_debug,
         "last_event_type": last.get("event_type", ""),
         "model": request.get("model") or (responses[-1].get("model") if responses else ""),
@@ -765,8 +748,6 @@ def _build_cluster(
         "agent_source": latest.get("agent_source") or "unknown",
         "session_count": len(ordered),
         "event_count": sum(item["event_count"] for item in ordered),
-        "injection_count": sum(item["injection_count"] for item in ordered),
-        "has_injection": any(item["has_injection"] for item in ordered),
         "has_predictor_debug": any(item.get("has_predictor_debug") for item in ordered),
         "updated_epoch": latest["updated_epoch"],
         "updated": latest["updated"],

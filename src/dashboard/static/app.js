@@ -43,15 +43,6 @@
       return defaultSessionId(cluster);
     }
 
-    const DIM_LABELS = {
-      authorization: "授权叙事",
-      neutrality: "用词中性化",
-      role_frame: "角色转换",
-      academic_frame: "学术包装",
-      decomposition: "任务拆分",
-      urgency: "紧迫感",
-    };
-
     // REGI operation -> visible label. The legacy path remains available as a secondary
     // diagnostic; the backend serves the canonical operation via latest_turn.regi.
     const REGI_OPERATION_LABELS = {
@@ -74,111 +65,6 @@
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
-    }
-
-    function tokenize(text) {
-      const re = /([一-鿿㐀-䶿])|([a-zA-Z0-9_]+)|([^a-zA-Z0-9_一-鿿㐀-䶿\s]+)|(\s+)/g;
-      const tokens = [];
-      let m;
-      while ((m = re.exec(text)) !== null) {
-        const raw = m[0];
-        if (m[1]) {
-          for (const ch of raw) tokens.push({ text: ch, type: "cjk" });
-        } else if (m[2]) {
-          tokens.push({ text: raw, type: "word" });
-        } else if (m[3]) {
-          tokens.push({ text: raw, type: "punct" });
-        } else {
-          tokens.push({ text: raw, type: "space" });
-        }
-      }
-      return tokens;
-    }
-
-    function computeDiff(original, injected) {
-      const a = tokenize(original);
-      const b = tokenize(injected);
-      const aStr = a.map(t => t.text);
-      const bStr = b.map(t => t.text);
-      const n = aStr.length, m = bStr.length;
-      const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
-      for (let i = 1; i <= n; i++) {
-        for (let j = 1; j <= m; j++) {
-          dp[i][j] = aStr[i - 1] === bStr[j - 1]
-            ? dp[i - 1][j - 1] + 1
-            : Math.max(dp[i - 1][j], dp[i][j - 1]);
-        }
-      }
-      const result = [];
-      let i = n, j = m;
-      const bufAdd = [], bufDel = [];
-      while (i > 0 || j > 0) {
-        if (i > 0 && j > 0 && aStr[i - 1] === bStr[j - 1]) {
-          for (const t of bufDel.reverse()) result.push({ text: t.text, tag: "del" });
-          for (const t of bufAdd.reverse()) result.push({ text: t.text, tag: "add" });
-          bufDel.length = 0;
-          bufAdd.length = 0;
-          result.push({ text: aStr[i - 1], tag: "same" });
-          i--;
-          j--;
-        } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-          bufAdd.push(b[j - 1]);
-          j--;
-        } else {
-          bufDel.push(a[i - 1]);
-          i--;
-        }
-      }
-      for (const t of bufDel.reverse()) result.push({ text: t.text, tag: "del" });
-      for (const t of bufAdd.reverse()) result.push({ text: t.text, tag: "add" });
-      return result.reverse();
-    }
-
-    function renderDiff(original, injected) {
-      const diff = computeDiff(original || "", injected || "");
-      if (!diff.length) return '<span class="diff-same">(empty)</span>';
-      let html = "";
-      for (const token of diff) {
-        const escaped = escapeHtml(token.text);
-        if (token.tag === "add") html += `<span class="diff-add">${escaped}</span>`;
-        else if (token.tag === "del") html += `<span class="diff-del">${escaped}</span>`;
-        else html += `<span class="diff-same">${escaped}</span>`;
-      }
-      return html;
-    }
-
-    function renderPDTPanel(pdtAudit, dialsFinal) {
-      let html = '<div class="pdt-panel"><h3>PDT 维度调谐</h3>';
-      const dims = dialsFinal || {};
-      const ordered = ["authorization","neutrality","role_frame","academic_frame","decomposition","urgency"];
-      for (const dk of ordered) {
-        const val = dims[dk] != null ? dims[dk] : 0;
-        const pct = Math.round(val * 100);
-        const label = DIM_LABELS[dk] || dk;
-        html += `<div class="dial-row">
-          <span class="dial-label">${label}</span>
-          <div class="dial-bar-wrap"><div class="dial-bar accept" style="width:${pct}%"></div></div>
-          <span class="dial-value">${val.toFixed(2)}</span>
-        </div>`;
-      }
-      html += '</div>';
-      html += '<div class="pdt-panel"><h3>PDT 迭代审计</h3>';
-      html += '<div class="pdt-iter header"><span>#</span><span>维度</span><span>前</span><span>后</span><span>胁迫</span><span>安全</span><span>一致</span><span>决策</span></div>';
-      for (const step of (pdtAudit || [])) {
-        const decCls = (step.decision || "").startsWith("ACCEPT") ? "ACCEPT" : "REJECT";
-        html += `<div class="pdt-iter">
-          <span>${step.step_id}</span>
-          <span>${DIM_LABELS[step.dimension] || step.dimension}</span>
-          <span>${(step.dial_before||0).toFixed(1)}</span>
-          <span>${(step.dial_after||0).toFixed(1)}</span>
-          <span>${(step.coercion_score||0).toFixed(2)}</span>
-          <span>${step.safety_risk != null ? step.safety_risk.toFixed(2) : "-"}</span>
-          <span>${step.coherence_score != null ? step.coherence_score.toFixed(2) : "-"}</span>
-          <span class="decision ${decCls}">${step.decision}</span>
-        </div>`;
-      }
-      html += '</div>';
-      return html;
     }
 
     function renderTrajectoryPanel(traj) {
@@ -255,7 +141,6 @@
     function renderTurnAnalysisPanel(latestTurn) {
       const turn = latestTurn || {};
       const snippet = turn.snippet || {};
-      const injection = turn.injection || snippet.injection || {};
       const sniffer = turn.sniffer || snippet.sniffer || {};
       const swap = turn.swap || snippet.swap || null;
       const trajectory = turn.trajectory || snippet.trajectory || null;
@@ -272,8 +157,6 @@
       const calibratorApplied = isPendingSnippet ? pendingText : (sniffer.calibrator_applied ? "yes" : "no");
       const responseReplaced = isPendingSnippet ? pendingText : (sniffer.response_replaced ? "yes" : "no");
       const rewrittenResponse = isPendingSnippet ? pendingText : (response.decision || "-");
-      const injectionBox = injection.applied ? `
-              <div class="debug-box wide"><b>Injected Input</b><span>${escapeHtml(injection.injected || injection.original || "-")}</span></div>` : "";
       const collapseLabel = turnAnalysisCollapsed ? "展开分析面板" : "收起分析面板";
       const operationLabel = regiLabel(turn.regi);
       const operationChip = operationLabel
@@ -304,7 +187,6 @@
               <div class="debug-box wide"><b>Assistant Reasoning</b><span>${escapeHtml(assistant.reasoning_content || "-")}</span></div>
               <div class="debug-box wide"><b>Rewrite Target</b><span>${escapeHtml(rewriteTarget)}</span></div>
               <div class="debug-box wide"><b>Rewritten Response</b><span>${escapeHtml(rewrittenResponse)}</span></div>
-              ${injectionBox}
             </div>
           </div>
           <details class="debug-json">
@@ -421,7 +303,6 @@
       const expanded = expandedClusters.has(cluster.cluster_key);
       const currentSessionId = getSelectedSessionId(cluster);
       const badges = [
-        `<span class="badge ${cluster.has_injection ? "injected" : ""}">${cluster.has_injection ? "injected" : "clean"}</span>`,
         `<span class="badge">${escapeHtml(cluster.cluster_mode || "stable")}</span>`,
         `<span class="badge">${escapeHtml(cluster.match_reason || "stable-id")}</span>`,
       ];
@@ -592,7 +473,6 @@
           <div class="summary">
             <div class="metric"><b>${item.session_count}</b><span>sessions</span></div>
             <div class="metric"><b>${item.event_count}</b><span>events</span></div>
-            <div class="metric"><b>${item.injection_count}</b><span>injections</span></div>
             <div class="metric"><b>${escapeHtml(item.latest_session_id || "-")}</b><span>latest</span></div>
           </div>
         </div>
@@ -618,52 +498,11 @@
       const turnPanel = detailNode.querySelector(".turn-analysis-panel");
       bindTurnAnalysisToggle(turnPanel, latestTurn);
 
-      let pdtAudit = null, pdtDials = null;
-      for (const event of filteredEvents) {
-        if (event.pdt_audit) {
-          pdtAudit = event.pdt_audit;
-          pdtDials = event.pdt_dials_final;
-          break;
-        }
-      }
-      if (pdtAudit) {
-        const panel = document.createElement("div");
-        panel.innerHTML = renderPDTPanel(pdtAudit, pdtDials);
-        eventsNode.appendChild(panel);
-      }
-
       for (const event of filteredEvents) {
         const block = document.createElement("article");
         block.className = "event";
-        const isInjection = event.event_type === "tmi_injection";
-        const isPDT = isInjection && event.pdt_audit;
         const isAssistantResult = (event.event_type === "response_completed" || event.event_type === "response_stream_ended") && event.response;
-
-        if (isInjection) {
-          const orig = event.original || "";
-          const inj = event.injected || "";
-          const steps = event.pdt_audit || [];
-          const accepts = isPDT ? steps.filter(s => s.decision === "ACCEPT").length : 0;
-          const pdtLabel = isPDT ? ` <span class="pdt-badge">PDT ${steps.length} steps / ${accepts} accepted</span>` : "";
-          const backendNote = event.backend ? ` <span style="color:var(--muted);font-size:11px">(${escapeHtml(event.backend)})</span>` : "";
-          block.innerHTML = `
-            <div class="event-title">
-              <span class="event-type"></span>
-              <span class="event-time"></span>
-            </div>
-            <div class="diff-panel">
-              <h3>词级差异 - 原始 -> 注入 ${pdtLabel} ${backendNote}</h3>
-              <div class="diff-side">
-                <div class="diff-label">Session ${escapeHtml(event.__session_id || "")}</div>
-                <div class="diff-text">${renderDiff(orig, inj)}</div>
-              </div>
-            </div>
-            <details style="padding:0 16px 10px">
-              <summary class="json-summary"><strong>原始 JSON 记录</strong><span>展开 / 收起大视图</span></summary>
-              <pre class="json-pre-large">${escapeHtml(asJson(event))}</pre>
-            </details>`;
-          block.querySelector(".event-type").innerHTML = `${event.event_type || "event"}${pdtLabel}${backendNote}`;
-        } else if (isAssistantResult) {
+        if (isAssistantResult) {
           block.innerHTML = renderAssistantResult(event);
         } else {
           block.innerHTML = `

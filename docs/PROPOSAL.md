@@ -196,8 +196,7 @@ AgentAblit/
 │   └── fp4_linear.py                # FP4 quantization primitives
 ├── tests/                           # Test suite
 ├── docs/
-│   ├── PROPOSAL.md                  # This document
-│   └── HF_RELEASE_PLAN.md          # HuggingFace model release plan
+│   └── PROPOSAL.md                  # This document
 └── examples/                        # Integration examples
 ```
 
@@ -210,5 +209,5 @@ AgentAblit/
 - ✅ **Local model servers** — Transformers+NVFP4, llama.cpp GGUF, OpenAI-compatible
 - ✅ **Trace/audit dashboard** — JSONL trace viewer with session replay
 - 🔄 **Test suite expansion** — porting from internal suite, adding CI
-- 🔄 **HuggingFace model release** — LoRA adapter upload (see `HF_RELEASE_PLAN.md`)
+- 🔄 **HuggingFace model release** — LoRA adapter upload
 - 📋 **Examples & quickstart guides** — integration demos for popular frameworks
