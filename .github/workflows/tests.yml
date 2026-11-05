@@ -47,8 +47,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Check imports
+        working-directory: src
         run: |
-          cd src && python -c "from proxy.config import ProxyConfig; print('config OK')"
-          cd src && python -c "from strategies.reconstruct.ledger import build_ledger; print('ledger OK')"
-          cd src && python -c "from strategies.reconstruct.candidate import validate_candidate; print('candidate OK')"
-          cd src && python -c "from shared.messages import first_assistant_message; print('messages OK')"
+          python -c "from proxy.config import ProxyConfig; print('config OK')"
+          python -c "from strategies.reconstruct.ledger import build_ledger; print('ledger OK')"
+          python -c "from strategies.reconstruct.candidate import validate_candidate; print('candidate OK')"
+          python -c "from shared.messages import first_assistant_message; print('messages OK')"
